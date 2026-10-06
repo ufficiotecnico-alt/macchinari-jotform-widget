@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MACCHINARIO</title>
+<style>
+body{font-family:Arial,sans-serif;margin:0;padding:12px;color:#222;font-size:14px}
+h3{margin:0 0 12px;font-size:16px}
+label{display:block;font-weight:700;margin:10px 0 5px}
+input,select,button{box-sizing:border-box;font:inherit}
+input,select{width:100%;padding:9px;border:1px solid #999;border-radius:4px;background:#fff}
+button{padding:9px 12px;border:1px solid #888;border-radius:4px;background:#fff;cursor:pointer}
+.primary{margin-top:10px}
+.results{border:1px solid #bbb;border-top:0;background:#fff;max-height:180px;overflow:auto}
+.result{padding:9px;border-top:1px solid #eee;cursor:pointer}
+.result:hover{background:#f3f3f3}
+.card{border:1px solid #bbb;border-radius:5px;padding:10px;margin-top:10px;background:#fafafa}
+.muted{color:#666;font-size:12px}
+.error{color:#a00000;font-size:12px;margin-top:7px}
+.hidden{display:none}
+.actions{display:flex;gap:8px;margin-top:10px}
+.actions button{flex:1}
+</style>
+</head>
+<body>
+<h3>MACCHINARIO</h3>
+
+<label for="clientSearch">Cliente</label>
+<input id="clientSearch" type="search" autocomplete="off"
+ placeholder="Cerca insegna, ragione sociale o indirizzo...">
+<div id="clientResults" class="results hidden"></div>
+
+<div id="clientCard" class="card hidden"></div>
+
+<div id="machineSection" class="hidden">
+  <label for="machineSearch">Macchinario</label>
+  <input id="machineSearch" type="search" autocomplete="off"
+   placeholder="Cerca marca, descrizione, modello o matricola...">
+  <div id="machineResults" class="results hidden"></div>
+</div>
+
+<div id="machineCard" class="card hidden"></div>
+
+<div class="actions">
+  <button id="newMachine" type="button" class="hidden">+ Aggiungi nuovo macchinario</button>
+  <button id="clear" type="button">Azzera</button>
+</div>
+
+<div id="newForm" class="card hidden">
+  <label>Cliente</label>
+  <input id="newClient" readonly>
+  <label>Marca</label><input id="newBrand">
+  <label>Descrizione</label><input id="newDesc">
+  <label>Modello</label><input id="newModel">
+  <label>Matricola</label><input id="newSerial">
+  <label>Note</label><input id="newNote">
+  <div class="actions">
+    <button id="saveNew" type="button">Salva macchinario</button>
+    <button id="cancelNew" type="button">Annulla</button>
+  </div>
+  <div id="newError" class="error"></div>
+</div>
+
+<div class="muted" style="margin-top:10px">
+Il cliente viene scelto prima del macchinario. La ricerca dei macchinari è limitata al cliente selezionato.
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycby_QAET2KqQB_Rq_VFC0SOHIVenJCcunLWPFVgz6CipZXTad1c63I0--O3ZY7Rh3Fsziw/exec';
+
+const SAMPLE_CLIENTS = [
+ {id:'1', name:'TecnoFood', company:'TecnoFood Italia S.p.A.', address:'Via del Lavoro 8', city:'Bologna', province:'BO'},
+ {id:'2', name:'Officina Rossi', company:'Rossi Industrial S.r.l.', address:'Via delle Industrie 12', city:'Milano', province:'MI'},
+ {id:'3', name:'Pewex', company:'Alpa', address:'Motopoli Sabina', city:'', province:''},
+ {id:'4', name:'Prova', company:'xxx', address:'Roma', city:'Ariccia', province:'RM'}
+];
+
+const SAMPLE_MACHINES = [
+ {id:'1', clientId:'2', brand:'FrigoTech', desc:'Unità di refrigerazione', model:'FT-220', serial:'FT220-1932', note:'Installata nel reparto commerciale'},
+ {id:'2', clientId:'1', brand:'Komatsu', desc:'Compressore industriale', model:'KX-400', serial:'KX400-8841', note:'Revisione annuale a marzo'},
+ {id:'3', clientId:'1', brand:'Orved', desc:'Confezionatrice sottovuoto', model:'VM 18', serial:'ORV-VM18-001', note:'Banco gastronomia'},
+ {id:'4', clientId:'1', brand:'Orved', desc:'Confezionatrice sottovuoto', model:'C 33', serial:'ORV-C33-002', note:'Laboratorio'},
+ {id:'5', clientId:'3', brand:'Orved', desc:'Termosaldatrice', model:'TS 35', serial:'ORV-TS35-003', note:'Reparto gastronomia'}
+];
+
+let clients = SAMPLE_CLIENTS.slice();
+let machines = SAMPLE_MACHINES.slice();
+let selectedClient = null;
+let selectedMachine = null;
+
+const $ = id => document.getElementById(id);
+const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function sendData(){
+  const value = selectedMachine ? {
+    ID_Cliente:selectedClient.id,
+    Nome_Insegna:selectedClient.name,
+    Ragione_Sociale:selectedClient.company,
+    ID_Macchinario:selectedMachine.id,
+    Marca:selectedMachine.brand,
+    Descrizione:selectedMachine.desc,
+    Modello:selectedMachine.model,
+    Matricola:selectedMachine.serial,
+    Note:selectedMachine.note || ''
+  } : '';
+  if(window.JFCustomWidget) JFCustomWidget.sendData({value:JSON.stringify(value)});
+}
+
+function renderClientResults(list){
+  $('clientResults').innerHTML = list.map(c =>
+    `<div class="result" data-id="${esc(c.id)}"><strong>${esc(c.name)}</strong><br><span class="muted">${esc(c.company)} · ${esc(c.address)}${c.city?', '+esc(c.city):''}</span></div>`
+  ).join('');
+  $('clientResults').classList.toggle('hidden',!list.length);
+  $('clientResults').querySelectorAll('.result').forEach(el=>{
+    el.onclick=()=>selectClient(clients.find(c=>c.id===el.dataset.id));
+  });
+}
+
+function renderMachineResults(list){
+  $('machineResults').innerHTML = list.map(m =>
+    `<div class="result" data-id="${esc(m.id)}"><strong>${esc(m.brand)} — ${esc(m.desc)}</strong><br><span class="muted">${esc(m.model)} · Matricola ${esc(m.serial)}</span></div>`
+  ).join('');
+  $('machineResults').classList.toggle('hidden',!list.length);
+  $('machineResults').querySelectorAll('.result').forEach(el=>{
+    el.onclick=()=>selectMachine(machines.find(m=>m.id===el.dataset.id));
+  });
+}
+
+function selectClient(c){
+  selectedClient=c; selectedMachine=null;
+  $('clientSearch').value='';
+  $('clientResults').classList.add('hidden');
+  $('clientCard').innerHTML=`<strong>${esc(c.name)}</strong><br>${esc(c.company)}<br>${esc(c.address)}${c.city?', '+esc(c.city):''}${c.province?', '+esc(c.province):''}`;
+  $('clientCard').classList.remove('hidden');
+  $('machineSection').classList.remove('hidden');
+  $('machineSearch').value='';
+  $('machineResults').classList.add('hidden');
+  $('machineCard').classList.add('hidden');
+  $('newMachine').classList.remove('hidden');
+  sendData();
+}
+
+function selectMachine(m){
+  selectedMachine=m;
+  $('machineSearch').value='';
+  $('machineResults').classList.add('hidden');
+  $('machineCard').innerHTML=`<strong>${esc(m.brand)} — ${esc(m.desc)}</strong><br>Modello: ${esc(m.model)}<br>Matricola: ${esc(m.serial)}${m.note?'<br>Note: '+esc(m.note):''}`;
+  $('machineCard').classList.remove('hidden');
+  sendData();
+}
+
+function clearAll(){
+  selectedClient=null; selectedMachine=null;
+  ['clientSearch','machineSearch'].forEach(id=>$(id).value='');
+  ['clientResults','machineResults','clientCard','machineCard','machineSection','newMachine','newForm'].forEach(id=>$(id).classList.add('hidden'));
+  $('newError').textContent='';
+  sendData();
+}
+
+$('clientSearch').addEventListener('input',e=>{
+  const q=e.target.value.trim().toLowerCase();
+  renderClientResults(q ? clients.filter(c=>(c.name+' '+c.company+' '+c.address+' '+c.city+' '+c.province).toLowerCase().includes(q)) : []);
+});
+
+$('machineSearch').addEventListener('input',e=>{
+  const q=e.target.value.trim().toLowerCase();
+  const list=selectedClient ? machines.filter(m=>m.clientId===selectedClient.id &&
+    (m.brand+' '+m.desc+' '+m.model+' '+m.serial).toLowerCase().includes(q)) : [];
+  renderMachineResults(q ? list : []);
+});
+
+$('newMachine').onclick=()=>{
+  $('newClient').value=selectedClient ? `${selectedClient.name} — ${selectedClient.company}` : '';
+  $('newForm').classList.remove('hidden');
+};
+
+$('cancelNew').onclick=()=>$('newForm').classList.add('hidden');
+
+$('clear').onclick=clearAll;
+
+$('saveNew').onclick=async()=>{
+  $('newError').textContent='';
+  if(!selectedClient){$('newError').textContent='Seleziona prima un cliente.';return;}
+  const m={id:'NEW-'+Date.now(),clientId:selectedClient.id,
+    brand:$('newBrand').value.trim(),desc:$('newDesc').value.trim(),
+    model:$('newModel').value.trim(),serial:$('newSerial').value.trim(),note:$('newNote').value.trim()};
+  if(!m.brand||!m.desc||!m.model||!m.serial){$('newError').textContent='Compila Marca, Descrizione, Modello e Matricola.';return;}
+  // Prototype: keep the new record immediately selectable.
+  // When the Apps Script backend is extended, this block will POST it to the master registry.
+  machines.push(m);
+  $('newForm').classList.add('hidden');
+  $('newBrand').value=$('newDesc').value=$('newModel').value=$('newSerial').value=$('newNote').value='';
+  $('machineSearch').value=m.serial;
+  selectMachine(m);
+};
+
+if(window.JFCustomWidget){
+  JFCustomWidget.subscribe('ready',()=>sendData());
+  JFCustomWidget.subscribe('submit',()=>{
+    sendData();
+    JFCustomWidget.sendSubmit({valid:!!selectedMachine,value:JSON.stringify(selectedMachine||{})});
+  });
+}
+</script>
+</body>
+</html>
