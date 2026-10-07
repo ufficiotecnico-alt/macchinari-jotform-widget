@@ -68,7 +68,7 @@ let machines=[
  {id:'4',clientId:'1',brand:'Orved',desc:'Confezionatrice sottovuoto',model:'C 33',serial:'ORV-C33-002',note:'Laboratorio'},
  {id:'5',clientId:'3',brand:'Orved',desc:'Termosaldatrice',model:'TS 35',serial:'ORV-TS35-003',note:'Reparto gastronomia'}
 ];
-const CLIENT_SYNC_KEY='assistenza_tecnica_selected_client_v1';
+const CLIENT_FIELD_NAME='scriviUna26';
 let selectedClient=null,selectedMachine=null;
 
 const $=id=>document.getElementById(id);
@@ -87,37 +87,41 @@ function clientFromValue(v){
  if(data&&typeof data==='object'){
    const id=String(data.ID_Cliente??data.id??'');
    if(id){const byId=SAMPLE_CLIENTS.find(c=>String(c.id)===id);if(byId)return byId;}
-   const name=String(data.Nome_Insegna??'').trim().toLowerCase();
-   const company=String(data.Ragione_Sociale??'').trim().toLowerCase();
-   const address=String(data.Indirizzo??'').trim().toLowerCase();
-   return SAMPLE_CLIENTS.find(c=>
-     (!name || c.name.toLowerCase()===name) &&
-     (!company || c.company.toLowerCase()===company) &&
-     (!address || c.address.toLowerCase()===address)
-   )||null;
  }
- return null;
+ const id=raw;
+ return SAMPLE_CLIENTS.find(c=>String(c.id)===id)||null;
 }
-function readClientFromSync(){
- let raw='';
- try{raw=localStorage.getItem(CLIENT_SYNC_KEY)||'';}catch(e){}
- if(raw===window._lastClientSync)return;
- window._lastClientSync=raw;
- applyClientValue(raw);
+function getBridgeValue(callback){
+ if(!window.JFCustomWidget || !JFCustomWidget.getFieldsValueByName){callback('');return;}
+ JFCustomWidget.getFieldsValueByName([CLIENT_FIELD_NAME],function(data){
+   let value='';
+   if(typeof data==='string') value=data;
+   else if(data && typeof data==='object'){
+     value=data[CLIENT_FIELD_NAME] ?? data[Object.keys(data)[0]] ?? '';
+   }
+   callback(String(value??'').trim());
+ });
 }
 function applyClientValue(v){
  const c=clientFromValue(v);
+ const newId=c?String(c.id):'';
+ const oldId=selectedClient?String(selectedClient.id):'';
+ if(newId===oldId && ((c&&selectedClient)||(!c&&!selectedClient)))return;
  selectedClient=c;selectedMachine=null;
  $('machineSearch').value='';$('machineResults').innerHTML='';$('machineResults').classList.add('hidden');$('machineCard').classList.add('hidden');$('newForm').classList.add('hidden');
  if(c){
-   $('status').innerHTML='<strong>'+esc(c.name)+'</strong> — '+esc(c.company)+' · '+esc(c.address)+(c.city?', '+esc(c.city):'');
+   $('status').textContent='Cliente selezionato. Cerca ora il macchinario.';
    $('machineSection').classList.remove('hidden');
  }else{
-   $('status').textContent='Seleziona prima un cliente nel campo Cliente del modulo.';
+   $('status').textContent='Seleziona prima un cliente nel campo Cliente.';
    $('machineSection').classList.add('hidden');
  }
  send();scheduleResize();
 }
+function readClientFromBridge(){
+ getBridgeValue(applyClientValue);
+}
+
 function renderResults(list){
  $('machineResults').innerHTML=list.map(m=>`<div class="result" data-id="${esc(m.id)}"><strong>${esc(m.brand)} — ${esc(m.desc)}</strong><br><span class="muted">${esc(m.model)} · Matricola ${esc(m.serial)}</span></div>`).join('');
  $('machineResults').classList.toggle('hidden',!list.length);
@@ -147,19 +151,23 @@ $('saveNew').onclick=()=>{
 if(window.ResizeObserver)new ResizeObserver(scheduleResize).observe(document.body);
 if(window.JFCustomWidget){
  JFCustomWidget.subscribe('ready',formData=>{
-   readClientFromSync();
+   readClientFromBridge();
    const saved=restoreMachineValue(formData&&formData.value);
    if(saved){
      selectedMachine=saved;
      $('machineCard').innerHTML=`<strong>${esc(saved.brand)} — ${esc(saved.desc)}</strong><br>Modello: ${esc(saved.model)}<br>Matricola: ${esc(saved.serial)}${saved.note?'<br>Note: '+esc(saved.note):''}`;
      $('machineCard').classList.remove('hidden');
    }
+   JFCustomWidget.listenFromField(CLIENT_FIELD_NAME,'change',function(value){ applyClientValue(value); });
+   setInterval(readClientFromBridge,700);
    scheduleResize();
-   window.addEventListener('storage',e=>{if(e.key===CLIENT_SYNC_KEY)readClientFromSync();});
-   setInterval(readClientFromSync,500);
  });
  JFCustomWidget.subscribe('submit',()=>JFCustomWidget.sendSubmit({valid:!!selectedMachine,value:JSON.stringify(selectedMachine||{})}));
 }
+function readClientFromBridge(){
+ getBridgeValue(applyClientValue);
+}
+
 scheduleResize();
 </script>
 </body>
