@@ -3,90 +3,115 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Test Macchinari</title>
+<title>Macchinari V4.1</title>
 <style>
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    padding: 12px;
-    font-family: Arial, sans-serif;
+    padding: 24px 18px;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #fff;
     color: #222;
-    background: #fff;
-    font-size: 14px;
   }
-  h3 { margin: 0 0 12px; font-size: 18px; }
-  button, select {
+  h1 {
+    margin: 0 0 26px;
+    text-align: center;
+    font-size: 30px;
+    font-weight: 700;
+  }
+  #addMachine {
     width: 100%;
-    box-sizing: border-box;
-    font: inherit;
-    padding: 10px;
-    border: 1px solid #888;
-    border-radius: 8px;
+    padding: 18px;
+    border: 2px solid #888;
+    border-radius: 14px;
     background: #fff;
+    font-size: 24px;
+    font-weight: 700;
+    cursor: pointer;
   }
-  button { font-weight: bold; cursor: pointer; }
+  #machines { margin-top: 26px; }
   .machine {
-    margin-top: 12px;
-    padding: 12px;
-    border: 1px solid #ccc;
+    margin-bottom: 24px;
+    padding: 20px 24px;
+    border: 2px solid #ddd;
+    border-radius: 16px;
+  }
+  .machine-title {
+    margin-bottom: 12px;
+    font-size: 24px;
+    font-weight: 700;
+  }
+  select {
+    width: 100%;
+    min-height: 48px;
+    padding: 6px 12px;
+    border: 1px solid #999;
     border-radius: 10px;
     background: #fff;
-  }
-  label {
-    display: block;
-    font-weight: bold;
-    margin: 0 0 6px;
+    font-size: 21px;
   }
 </style>
 </head>
 <body>
+  <h1>MACCHINARI — TEST V4.1</h1>
 
-<h3>MACCHINARI — TEST</h3>
-
-<button type="button" id="addMachine">+ Aggiungi macchinario</button>
-
-<div id="machines"></div>
+  <button id="addMachine" type="button">+ Aggiungi macchinario</button>
+  <div id="machines"></div>
 
 <script>
-const SAMPLE_MACHINES = [
-  {id:'2', text:'Komatsu — Compressore industriale — KX-400 — KX400-8841'},
-  {id:'3', text:'Orved — Confezionatrice sottovuoto — VM 18 — ORV-VM18-001'},
-  {id:'4', text:'Orved — Confezionatrice sottovuoto — C 33 — ORV-C33-002'}
-];
+(function () {
+  // V4.1: primo test incrementale.
+  // L'unica aggiunta rispetto alla V4 minimale è l'inizializzazione
+  // della libreria Jotform Custom Widget, senza usare altri metodi API.
 
-const machines = document.getElementById('machines');
-const addButton = document.getElementById('addMachine');
+  function initWidget() {
+    const addButton = document.getElementById('addMachine');
+    const machines = document.getElementById('machines');
+    let counter = 0;
 
-let counter = 0;
+    const machineList = [
+      { id: '2', label: 'Komatsu — Compressore industriale — KX-400' },
+      { id: '3', label: 'Orved — Confezionatrice sottovuoto — VM 18' },
+      { id: '4', label: 'Orved — Confezionatrice sottovuoto — C 33' }
+    ];
 
-addButton.addEventListener('click', function () {
-  counter++;
+    addButton.addEventListener('click', function () {
+      counter++;
 
-  const section = document.createElement('div');
-  section.className = 'machine';
+      const block = document.createElement('div');
+      block.className = 'machine';
 
-  const label = document.createElement('label');
-  label.textContent = 'Macchinario ' + counter;
+      const title = document.createElement('div');
+      title.className = 'machine-title';
+      title.textContent = 'Macchinario ' + counter;
 
-  const select = document.createElement('select');
+      const select = document.createElement('select');
+      select.innerHTML = '<option value="">-- Seleziona un macchinario --</option>';
 
-  const empty = document.createElement('option');
-  empty.value = '';
-  empty.textContent = '-- Seleziona un macchinario --';
-  select.appendChild(empty);
+      machineList.forEach(function (machine) {
+        const option = document.createElement('option');
+        option.value = machine.id;
+        option.textContent = machine.label;
+        select.appendChild(option);
+      });
 
-  SAMPLE_MACHINES.forEach(function (machine) {
-    const option = document.createElement('option');
-    option.value = machine.id;
-    option.textContent = machine.text;
-    select.appendChild(option);
-  });
+      block.appendChild(title);
+      block.appendChild(select);
+      machines.appendChild(block);
+    });
+  }
 
-  section.appendChild(label);
-  section.appendChild(select);
-  machines.appendChild(section);
-});
+  // In un ambiente Jotform, inizializza dopo che la libreria è pronta.
+  // Se JFCustomWidget non è presente, il test resta comunque utilizzabile:
+  // in quel caso partiamo direttamente con la stessa UI.
+  if (window.JFCustomWidget && typeof window.JFCustomWidget.subscribe === 'function') {
+    window.JFCustomWidget.subscribe('ready', function () {
+      initWidget();
+    });
+  } else {
+    initWidget();
+  }
+})();
 </script>
-
 </body>
 </html>
