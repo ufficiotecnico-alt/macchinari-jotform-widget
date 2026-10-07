@@ -3,148 +3,127 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Macchinari V4.2</title>
+<title>Macchinari V4.3</title>
 <style>
   * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    padding: 24px 18px;
-    font-family: Arial, Helvetica, sans-serif;
-    background: #fff;
-    color: #222;
-  }
-  h1 {
-    margin: 0 0 26px;
-    text-align: center;
-    font-size: 30px;
-    font-weight: 700;
-  }
-  #addMachine {
-    width: 100%;
-    padding: 18px;
-    border: 2px solid #888;
-    border-radius: 14px;
-    background: #fff;
-    font-size: 24px;
-    font-weight: 700;
-    cursor: pointer;
-  }
-  #machines { margin-top: 26px; }
-  .machine {
-    margin-bottom: 24px;
-    padding: 20px 24px;
-    border: 2px solid #ddd;
-    border-radius: 16px;
-  }
-  .machine-title {
-    margin-bottom: 12px;
-    font-size: 24px;
-    font-weight: 700;
-  }
-  select {
-    width: 100%;
-    min-height: 48px;
-    padding: 6px 12px;
-    border: 1px solid #999;
-    border-radius: 10px;
-    background: #fff;
-    font-size: 21px;
-  }
+  body { margin:0; padding:24px 18px; font-family:Arial,Helvetica,sans-serif; background:#fff; color:#222; }
+  h1 { margin:0 0 26px; text-align:center; font-size:30px; font-weight:700; }
+  #addMachine { width:100%; padding:18px; border:2px solid #888; border-radius:14px; background:#fff; font-size:24px; font-weight:700; cursor:pointer; }
+  #addMachine:disabled { opacity:.45; cursor:not-allowed; }
+  #machines { margin-top:26px; }
+  .machine { margin-bottom:24px; padding:20px 24px; border:2px solid #ddd; border-radius:16px; }
+  .machine-title { margin-bottom:12px; font-size:24px; font-weight:700; }
+  select { width:100%; min-height:48px; padding:6px 12px; border:1px solid #999; border-radius:10px; background:#fff; font-size:21px; }
+  #bridgeStatus { margin-top:14px; padding:10px 12px; border:1px dashed #aaa; border-radius:8px; font-size:16px; text-align:center; color:#555; }
+  #emptyStatus { margin-top:18px; padding:14px; border-radius:10px; background:#f5f5f5; text-align:center; color:#666; font-size:17px; display:none; }
 </style>
 </head>
 <body>
-  <h1>MACCHINARI — TEST V4.2</h1>
-
-  <button id="addMachine" type="button">+ Aggiungi macchinario</button>
-  <div id="bridgeStatus" style="margin-top:14px;padding:10px 12px;border:1px dashed #aaa;border-radius:8px;font-size:16px;text-align:center;color:#555;">ID Cliente ponte: lettura in corso…</div>
+  <h1>MACCHINARI — TEST V4.3</h1>
+  <button id="addMachine" type="button" disabled>+ Aggiungi macchinario</button>
+  <div id="bridgeStatus">ID Cliente ponte: lettura in corso…</div>
+  <div id="emptyStatus">Nessun macchinario disponibile per questo cliente.</div>
   <div id="machines"></div>
 
 <script>
 (function () {
-  // V4.2: primo test incrementale.
-  // L'unica aggiunta rispetto alla V4 minimale è l'inizializzazione
-  // della libreria Jotform Custom Widget, senza usare altri metodi API.
+  const ALL_MACHINES = [
+    { id:'1', clientId:'2', label:'FrigoTech — Unità di refrigerazione — FT-220' },
+    { id:'2', clientId:'1', label:'Komatsu — Compressore industriale — KX-400' },
+    { id:'3', clientId:'1', label:'Orved — Confezionatrice sottovuoto — VM 18' },
+    { id:'4', clientId:'1', label:'Orved — Confezionatrice sottovuoto — C 33' },
+    { id:'5', clientId:'3', label:'Orved — Termosaldatrice — TS 35' }
+  ];
 
-  function initWidget() {
-    const addButton = document.getElementById('addMachine');
-    const machines = document.getElementById('machines');
-    let counter = 0;
+  let counter = 0;
+  let availableMachines = [];
 
-    const machineList = [
-      { id: '2', label: 'Komatsu — Compressore industriale — KX-400' },
-      { id: '3', label: 'Orved — Confezionatrice sottovuoto — VM 18' },
-      { id: '4', label: 'Orved — Confezionatrice sottovuoto — C 33' }
-    ];
+  function normalizeClientId(value) {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string' || typeof value === 'number') return String(value).trim();
 
-    addButton.addEventListener('click', function () {
-      counter++;
-
-      const block = document.createElement('div');
-      block.className = 'machine';
-
-      const title = document.createElement('div');
-      title.className = 'machine-title';
-      title.textContent = 'Macchinario ' + counter;
-
-      const select = document.createElement('select');
-      select.innerHTML = '<option value="">-- Seleziona un macchinario --</option>';
-
-      machineList.forEach(function (machine) {
-        const option = document.createElement('option');
-        option.value = machine.id;
-        option.textContent = machine.label;
-        select.appendChild(option);
-      });
-
-      block.appendChild(title);
-      block.appendChild(select);
-      machines.appendChild(block);
-    });
-  }
-
-  function showBridgeValue(value) {
-    let text = '';
-
-    try {
-      if (value === null || value === undefined) {
-        text = '(nessun valore)';
-      } else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-        text = String(value);
-      } else {
-        text = JSON.stringify(value);
-      }
-    } catch (e) {
-      text = '(valore non leggibile)';
+    if (Array.isArray(value)) {
+      if (!value.length) return '';
+      return normalizeClientId(value[0]);
     }
 
-    const status = document.getElementById('bridgeStatus');
-    if (status) status.textContent = 'ID Cliente ponte: ' + text;
+    if (typeof value === 'object') {
+      const keys = ['scriviUna26','26','input_26','value','answer','answerValue'];
+      for (const key of keys) {
+        if (value[key] !== undefined && value[key] !== null) {
+          const result = normalizeClientId(value[key]);
+          if (result) return result;
+        }
+      }
+      for (const key in value) {
+        if (!Object.prototype.hasOwnProperty.call(value,key)) continue;
+        const result = normalizeClientId(value[key]);
+        if (result) return result;
+      }
+    }
+    return '';
   }
 
-  function readBridge() {
+  function showStatus(text) {
+    document.getElementById('bridgeStatus').textContent = 'ID Cliente ponte: ' + text;
+  }
+
+  function renderForClient(clientId) {
+    availableMachines = ALL_MACHINES.filter(m => m.clientId === clientId);
+    document.getElementById('machines').innerHTML = '';
+    counter = 0;
+    document.getElementById('emptyStatus').style.display = availableMachines.length ? 'none' : 'block';
+    document.getElementById('addMachine').disabled = availableMachines.length === 0;
+  }
+
+  function addMachineBlock() {
+    counter++;
+    const block = document.createElement('div');
+    block.className = 'machine';
+
+    const title = document.createElement('div');
+    title.className = 'machine-title';
+    title.textContent = 'Macchinario ' + counter;
+
+    const select = document.createElement('select');
+    select.innerHTML = '<option value="">-- Seleziona un macchinario --</option>';
+    availableMachines.forEach(function (machine) {
+      const option = document.createElement('option');
+      option.value = machine.id;
+      option.textContent = machine.label;
+      select.appendChild(option);
+    });
+
+    block.appendChild(title);
+    block.appendChild(select);
+    document.getElementById('machines').appendChild(block);
+  }
+
+  function readBridgeAndFilter() {
     if (!window.JFCustomWidget || typeof window.JFCustomWidget.getFieldsValueById !== 'function') {
-      showBridgeValue('API non disponibile');
+      showStatus('API non disponibile');
       return;
     }
 
     try {
       window.JFCustomWidget.getFieldsValueById(['26'], function (value) {
-        showBridgeValue(value);
+        const clientId = normalizeClientId(value);
+        showStatus(clientId || '(nessun valore)');
+        renderForClient(clientId);
       });
     } catch (e) {
-      showBridgeValue('errore lettura');
+      showStatus('errore lettura');
     }
   }
 
-  // V4.2: aggiungiamo esclusivamente la lettura del campo ponte ID 26.
-  // Nessun filtro dei macchinari, nessun listener, nessun polling, nessun sendData.
+  document.getElementById('addMachine').addEventListener('click', addMachineBlock);
+
   if (window.JFCustomWidget && typeof window.JFCustomWidget.subscribe === 'function') {
     window.JFCustomWidget.subscribe('ready', function () {
-      initWidget();
-      readBridge();
+      readBridgeAndFilter();
     });
   } else {
-    initWidget();
+    showStatus('API non disponibile');
   }
 })();
 </script>
