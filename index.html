@@ -8,11 +8,10 @@
 body{font-family:Arial,sans-serif;margin:0;padding:12px;color:#222;font-size:14px}
 h3{margin:0 0 12px;font-size:16px}
 label{display:block;font-weight:700;margin:10px 0 5px}
-input,select,button{box-sizing:border-box;font:inherit}
-input,select{width:100%;padding:9px;border:1px solid #999;border-radius:4px;background:#fff}
+input,button{box-sizing:border-box;font:inherit}
+input{width:100%;padding:9px;border:1px solid #999;border-radius:4px;background:#fff}
 button{padding:9px 12px;border:1px solid #888;border-radius:4px;background:#fff;cursor:pointer}
-.primary{margin-top:10px}
-.results{border:1px solid #bbb;border-top:0;background:#fff;max-height:180px;overflow:auto}
+.results{border:1px solid #bbb;border-top:0;background:#fff;max-height:260px;overflow:auto}
 .result{padding:9px;border-top:1px solid #eee;cursor:pointer}
 .result:hover{background:#f3f3f3}
 .card{border:1px solid #bbb;border-radius:5px;padding:10px;margin-top:10px;background:#fafafa}
@@ -21,35 +20,28 @@ button{padding:9px 12px;border:1px solid #888;border-radius:4px;background:#fff;
 .hidden{display:none}
 .actions{display:flex;gap:8px;margin-top:10px}
 .actions button{flex:1}
+.status{margin-top:8px}
 </style>
+<script src="https://js.jotform.com/JotFormCustomWidget.min.js"></script>
 </head>
 <body>
 <h3>MACCHINARIO</h3>
+<div id="status" class="muted">In attesa del cliente selezionato nel modulo.</div>
 
-<label for="clientSearch">Cliente</label>
-<input id="clientSearch" type="search" autocomplete="off"
- placeholder="Cerca insegna, ragione sociale o indirizzo...">
-<div id="clientResults" class="results hidden"></div>
-
-<div id="clientCard" class="card hidden"></div>
-
-<div id="machineSection" class="hidden">
-  <label for="machineSearch">Macchinario</label>
-  <input id="machineSearch" type="search" autocomplete="off"
-   placeholder="Cerca marca, descrizione, modello o matricola...">
-  <div id="machineResults" class="results hidden"></div>
-</div>
-
+<section id="machineSection" class="hidden">
+<label for="machineSearch">Macchinario</label>
+<input id="machineSearch" type="search" autocomplete="off" placeholder="Cerca marca, descrizione, modello o matricola...">
+<div id="machineResults" class="results hidden"></div>
 <div id="machineCard" class="card hidden"></div>
-
 <div class="actions">
-  <button id="newMachine" type="button" class="hidden">+ Aggiungi nuovo macchinario</button>
+  <button id="newMachine" type="button">+ Aggiungi nuovo macchinario</button>
   <button id="clear" type="button">Azzera</button>
 </div>
+</section>
 
 <div id="newForm" class="card hidden">
-  <label>Cliente</label>
-  <input id="newClient" readonly>
+  <div class="muted">Cliente associato</div>
+  <strong id="newClient"></strong>
   <label>Marca</label><input id="newBrand">
   <label>Descrizione</label><input id="newDesc">
   <label>Modello</label><input id="newModel">
@@ -62,146 +54,122 @@ button{padding:9px 12px;border:1px solid #888;border-radius:4px;background:#fff;
   <div id="newError" class="error"></div>
 </div>
 
-<div class="muted" style="margin-top:10px">
-Il cliente viene scelto prima del macchinario. La ricerca dei macchinari è limitata al cliente selezionato.
-</div>
-
 <script>
-const API = 'https://script.google.com/macros/s/AKfycby_QAET2KqQB_Rq_VFC0SOHIVenJCcunLWPFVgz6CipZXTad1c63I0--O3ZY7Rh3Fsziw/exec';
-
-const SAMPLE_CLIENTS = [
- {id:'1', name:'TecnoFood', company:'TecnoFood Italia S.p.A.', address:'Via del Lavoro 8', city:'Bologna', province:'BO'},
- {id:'2', name:'Officina Rossi', company:'Rossi Industrial S.r.l.', address:'Via delle Industrie 12', city:'Milano', province:'MI'},
- {id:'3', name:'Pewex', company:'Alpa', address:'Motopoli Sabina', city:'', province:''},
- {id:'4', name:'Prova', company:'xxx', address:'Roma', city:'Ariccia', province:'RM'}
+const SAMPLE_CLIENTS=[
+ {id:'1',name:'TecnoFood',company:'TecnoFood Italia S.p.A.',address:'Via del Lavoro 8',city:'Bologna',province:'BO'},
+ {id:'2',name:'Officina Rossi',company:'Rossi Industrial S.r.l.',address:'Via delle Industrie 12',city:'Milano',province:'MI'},
+ {id:'3',name:'Pewex',company:'Alpa',address:'Motopoli Sabina',city:'',province:''},
+ {id:'4',name:'Prova',company:'xxx',address:'Roma',city:'Ariccia',province:'RM'}
 ];
-
-const SAMPLE_MACHINES = [
- {id:'1', clientId:'2', brand:'FrigoTech', desc:'Unità di refrigerazione', model:'FT-220', serial:'FT220-1932', note:'Installata nel reparto commerciale'},
- {id:'2', clientId:'1', brand:'Komatsu', desc:'Compressore industriale', model:'KX-400', serial:'KX400-8841', note:'Revisione annuale a marzo'},
- {id:'3', clientId:'1', brand:'Orved', desc:'Confezionatrice sottovuoto', model:'VM 18', serial:'ORV-VM18-001', note:'Banco gastronomia'},
- {id:'4', clientId:'1', brand:'Orved', desc:'Confezionatrice sottovuoto', model:'C 33', serial:'ORV-C33-002', note:'Laboratorio'},
- {id:'5', clientId:'3', brand:'Orved', desc:'Termosaldatrice', model:'TS 35', serial:'ORV-TS35-003', note:'Reparto gastronomia'}
+let machines=[
+ {id:'1',clientId:'2',brand:'FrigoTech',desc:'Unità di refrigerazione',model:'FT-220',serial:'FT220-1932',note:'Installata nel reparto commerciale'},
+ {id:'2',clientId:'1',brand:'Komatsu',desc:'Compressore industriale',model:'KX-400',serial:'KX400-8841',note:'Revisione annuale a marzo'},
+ {id:'3',clientId:'1',brand:'Orved',desc:'Confezionatrice sottovuoto',model:'VM 18',serial:'ORV-VM18-001',note:'Banco gastronomia'},
+ {id:'4',clientId:'1',brand:'Orved',desc:'Confezionatrice sottovuoto',model:'C 33',serial:'ORV-C33-002',note:'Laboratorio'},
+ {id:'5',clientId:'3',brand:'Orved',desc:'Termosaldatrice',model:'TS 35',serial:'ORV-TS35-003',note:'Reparto gastronomia'}
 ];
-
-let clients = SAMPLE_CLIENTS.slice();
-let machines = SAMPLE_MACHINES.slice();
-let selectedClient = null;
-let selectedMachine = null;
-
-const $ = id => document.getElementById(id);
-const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
-function sendData(){
-  const value = selectedMachine ? {
-    ID_Cliente:selectedClient.id,
-    Nome_Insegna:selectedClient.name,
-    Ragione_Sociale:selectedClient.company,
-    ID_Macchinario:selectedMachine.id,
-    Marca:selectedMachine.brand,
-    Descrizione:selectedMachine.desc,
-    Modello:selectedMachine.model,
-    Matricola:selectedMachine.serial,
-    Note:selectedMachine.note || ''
-  } : '';
-  if(window.JFCustomWidget) JFCustomWidget.sendData({value:JSON.stringify(value)});
+const CLIENT_FIELD_NAME='scriviUna25';
+let selectedClient=null,selectedMachine=null,clientFieldName=CLIENT_FIELD_NAME;
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function resizeWidget(){if(window.JFCustomWidget?.requestFrameResize){const h=Math.max(document.body.scrollHeight,document.documentElement.scrollHeight)+8;JFCustomWidget.requestFrameResize({height:h})}}
+function scheduleResize(){requestAnimationFrame(resizeWidget)}
+function send(){if(window.JFCustomWidget)JFCustomWidget.sendData({value:selectedMachine?JSON.stringify({
+ ID_Cliente:selectedClient?.id||'',Nome_Insegna:selectedClient?.name||'',Ragione_Sociale:selectedClient?.company||'',
+ ID_Macchinario:selectedMachine.id,Marca:selectedMachine.brand,Descrizione:selectedMachine.desc,Modello:selectedMachine.model,Matricola:selectedMachine.serial,Note:selectedMachine.note||''
+}):''})}
+function clientFromValue(v){
+ const raw=String(v??'').trim();
+ if(!raw)return null;
+ let data=null;
+ try{data=JSON.parse(raw)}catch(e){}
+ if(data&&typeof data==='object'){
+   const id=String(data.ID_Cliente??data.id??'');
+   if(id){const byId=SAMPLE_CLIENTS.find(c=>String(c.id)===id);if(byId)return byId;}
+   const text=[data.Nome_Insegna,data.Ragione_Sociale,data.Indirizzo,data.Comune,data.Provincia].filter(Boolean).join(' ').toLowerCase();
+   if(text){return SAMPLE_CLIENTS.find(c=>(c.name+' '+c.company+' '+c.address+' '+c.city+' '+c.province).toLowerCase().includes(text)||text.includes((c.name+' '+c.company).toLowerCase()))||null;}
+ }
+ const q=raw.toLowerCase();
+ return SAMPLE_CLIENTS.find(c=>(c.name+' '+c.company+' '+c.address+' '+c.city+' '+c.province).toLowerCase().includes(q))||null;
 }
-
-function renderClientResults(list){
-  $('clientResults').innerHTML = list.map(c =>
-    `<div class="result" data-id="${esc(c.id)}"><strong>${esc(c.name)}</strong><br><span class="muted">${esc(c.company)} · ${esc(c.address)}${c.city?', '+esc(c.city):''}</span></div>`
-  ).join('');
-  $('clientResults').classList.toggle('hidden',!list.length);
-  $('clientResults').querySelectorAll('.result').forEach(el=>{
-    el.onclick=()=>selectClient(clients.find(c=>c.id===el.dataset.id));
-  });
+function extractFieldValue(res){
+ const d=res?.data;
+ if(typeof d==='string')return d;
+ if(Array.isArray(d)&&d.length)return typeof d[0]==='object'?Object.values(d[0])[0]:d[0];
+ if(d&&typeof d==='object'){const vals=Object.values(d);return vals.length?String(vals[0]??''):''}
+ return '';
 }
-
-function renderMachineResults(list){
-  $('machineResults').innerHTML = list.map(m =>
-    `<div class="result" data-id="${esc(m.id)}"><strong>${esc(m.brand)} — ${esc(m.desc)}</strong><br><span class="muted">${esc(m.model)} · Matricola ${esc(m.serial)}</span></div>`
-  ).join('');
-  $('machineResults').classList.toggle('hidden',!list.length);
-  $('machineResults').querySelectorAll('.result').forEach(el=>{
-    el.onclick=()=>selectMachine(machines.find(m=>m.id===el.dataset.id));
-  });
+function restoreMachineValue(v){
+ const raw=String(v??'').trim();
+ if(!raw)return null;
+ let data=null;try{data=JSON.parse(raw)}catch(e){return null}
+ if(!data||typeof data!=='object')return null;
+ const id=String(data.ID_Macchinario??'');
+ if(!id)return null;
+ return machines.find(m=>String(m.id)===id)||{
+   id:id,clientId:String(data.ID_Cliente??selectedClient?.id??''),brand:data.Marca||'',desc:data.Descrizione||'',model:data.Modello||'',serial:data.Matricola||'',note:data.Note||''
+ };
 }
-
-function selectClient(c){
-  selectedClient=c; selectedMachine=null;
-  $('clientSearch').value='';
-  $('clientResults').classList.add('hidden');
-  $('clientCard').innerHTML=`<strong>${esc(c.name)}</strong><br>${esc(c.company)}<br>${esc(c.address)}${c.city?', '+esc(c.city):''}${c.province?', '+esc(c.province):''}`;
-  $('clientCard').classList.remove('hidden');
-  $('machineSection').classList.remove('hidden');
-  $('machineSearch').value='';
-  $('machineResults').classList.add('hidden');
-  $('machineCard').classList.add('hidden');
-  $('newMachine').classList.remove('hidden');
-  sendData();
+function applyClientValue(v){
+ const c=clientFromValue(v);
+ selectedClient=c;selectedMachine=null;
+ $('machineSearch').value='';$('machineResults').innerHTML='';$('machineResults').classList.add('hidden');$('machineCard').classList.add('hidden');$('newForm').classList.add('hidden');
+ if(c){
+   $('status').innerHTML='<strong>'+esc(c.name)+'</strong> — '+esc(c.company)+' · '+esc(c.address)+(c.city?', '+esc(c.city):'');
+   $('machineSection').classList.remove('hidden');
+ }else{
+   $('status').textContent='Seleziona prima un cliente nel campo Cliente del modulo.';
+   $('machineSection').classList.add('hidden');
+ }
+ send();scheduleResize();
 }
-
+function readClient(){
+ if(!clientFieldName||!window.JFCustomWidget?.getFieldsValueByName)return;
+ JFCustomWidget.getFieldsValueByName([clientFieldName],res=>applyClientValue(extractFieldValue(res)));
+}
+function renderResults(list){
+ $('machineResults').innerHTML=list.map(m=>`<div class="result" data-id="${esc(m.id)}"><strong>${esc(m.brand)} — ${esc(m.desc)}</strong><br><span class="muted">${esc(m.model)} · Matricola ${esc(m.serial)}</span></div>`).join('');
+ $('machineResults').classList.toggle('hidden',!list.length);
+ $('machineResults').querySelectorAll('.result').forEach(el=>el.onclick=()=>selectMachine(machines.find(m=>m.id===el.dataset.id)));
+ scheduleResize();
+}
 function selectMachine(m){
-  selectedMachine=m;
-  $('machineSearch').value='';
-  $('machineResults').classList.add('hidden');
-  $('machineCard').innerHTML=`<strong>${esc(m.brand)} — ${esc(m.desc)}</strong><br>Modello: ${esc(m.model)}<br>Matricola: ${esc(m.serial)}${m.note?'<br>Note: '+esc(m.note):''}`;
-  $('machineCard').classList.remove('hidden');
-  sendData();
+ selectedMachine=m;$('machineSearch').value='';$('machineResults').classList.add('hidden');
+ $('machineCard').innerHTML=`<strong>${esc(m.brand)} — ${esc(m.desc)}</strong><br>Modello: ${esc(m.model)}<br>Matricola: ${esc(m.serial)}${m.note?'<br>Note: '+esc(m.note):''}`;
+ $('machineCard').classList.remove('hidden');send();scheduleResize();
 }
-
-function clearAll(){
-  selectedClient=null; selectedMachine=null;
-  ['clientSearch','machineSearch'].forEach(id=>$(id).value='');
-  ['clientResults','machineResults','clientCard','machineCard','machineSection','newMachine','newForm'].forEach(id=>$(id).classList.add('hidden'));
-  $('newError').textContent='';
-  sendData();
-}
-
-$('clientSearch').addEventListener('input',e=>{
-  const q=e.target.value.trim().toLowerCase();
-  renderClientResults(q ? clients.filter(c=>(c.name+' '+c.company+' '+c.address+' '+c.city+' '+c.province).toLowerCase().includes(q)) : []);
-});
-
 $('machineSearch').addEventListener('input',e=>{
-  const q=e.target.value.trim().toLowerCase();
-  const list=selectedClient ? machines.filter(m=>m.clientId===selectedClient.id &&
-    (m.brand+' '+m.desc+' '+m.model+' '+m.serial).toLowerCase().includes(q)) : [];
-  renderMachineResults(q ? list : []);
+ const q=e.target.value.trim().toLowerCase();
+ const list=selectedClient?machines.filter(m=>m.clientId===selectedClient.id&&(m.brand+' '+m.desc+' '+m.model+' '+m.serial).toLowerCase().includes(q)):[];
+ renderResults(q?list:[]);
 });
-
-$('newMachine').onclick=()=>{
-  $('newClient').value=selectedClient ? `${selectedClient.name} — ${selectedClient.company}` : '';
-  $('newForm').classList.remove('hidden');
+$('newMachine').onclick=()=>{if(!selectedClient)return;$('newClient').textContent=selectedClient.name+' — '+selectedClient.company;$('newForm').classList.remove('hidden');scheduleResize()};
+$('cancelNew').onclick=()=>{$('newForm').classList.add('hidden');scheduleResize()};
+$('clear').onclick=()=>{selectedMachine=null;$('machineSearch').value='';$('machineResults').classList.add('hidden');$('machineCard').classList.add('hidden');$('newForm').classList.add('hidden');send();scheduleResize()};
+$('saveNew').onclick=()=>{
+ $('newError').textContent='';
+ const m={id:'NEW-'+Date.now(),clientId:selectedClient.id,brand:$('newBrand').value.trim(),desc:$('newDesc').value.trim(),model:$('newModel').value.trim(),serial:$('newSerial').value.trim(),note:$('newNote').value.trim()};
+ if(!m.brand||!m.desc||!m.model||!m.serial){$('newError').textContent='Compila Marca, Descrizione, Modello e Matricola.';return}
+ machines.push(m);['newBrand','newDesc','newModel','newSerial','newNote'].forEach(id=>$(id).value='');
+ $('newForm').classList.add('hidden');selectMachine(m);
 };
-
-$('cancelNew').onclick=()=>$('newForm').classList.add('hidden');
-
-$('clear').onclick=clearAll;
-
-$('saveNew').onclick=async()=>{
-  $('newError').textContent='';
-  if(!selectedClient){$('newError').textContent='Seleziona prima un cliente.';return;}
-  const m={id:'NEW-'+Date.now(),clientId:selectedClient.id,
-    brand:$('newBrand').value.trim(),desc:$('newDesc').value.trim(),
-    model:$('newModel').value.trim(),serial:$('newSerial').value.trim(),note:$('newNote').value.trim()};
-  if(!m.brand||!m.desc||!m.model||!m.serial){$('newError').textContent='Compila Marca, Descrizione, Modello e Matricola.';return;}
-  // Prototype: keep the new record immediately selectable.
-  // When the Apps Script backend is extended, this block will POST it to the master registry.
-  machines.push(m);
-  $('newForm').classList.add('hidden');
-  $('newBrand').value=$('newDesc').value=$('newModel').value=$('newSerial').value=$('newNote').value='';
-  $('machineSearch').value=m.serial;
-  selectMachine(m);
-};
-
+if(window.ResizeObserver)new ResizeObserver(scheduleResize).observe(document.body);
 if(window.JFCustomWidget){
-  JFCustomWidget.subscribe('ready',()=>sendData());
-  JFCustomWidget.subscribe('submit',()=>{
-    sendData();
-    JFCustomWidget.sendSubmit({valid:!!selectedMachine,value:JSON.stringify(selectedMachine||{})});
-  });
+ JFCustomWidget.subscribe('ready',formData=>{
+   clientFieldName=CLIENT_FIELD_NAME;
+   readClient();
+   const saved=restoreMachineValue(formData&&formData.value);
+   if(saved){
+     selectedMachine=saved;
+     $('machineCard').innerHTML=`<strong>${esc(saved.brand)} — ${esc(saved.desc)}</strong><br>Modello: ${esc(saved.model)}<br>Matricola: ${esc(saved.serial)}${saved.note?'<br>Note: '+esc(saved.note):''}`;
+     $('machineCard').classList.remove('hidden');
+   }
+   scheduleResize();
+   JFCustomWidget.listenFromField(clientFieldName,'change',readClient);
+ });
+ JFCustomWidget.subscribe('submit',()=>JFCustomWidget.sendSubmit({valid:!!selectedMachine,value:JSON.stringify(selectedMachine||{})}));
 }
+scheduleResize();
 </script>
 </body>
 </html>
