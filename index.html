@@ -4,24 +4,52 @@
 <script src="https://js.jotform.com/JotFormCustomWidget.min.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Macchinari V4.3e</title>
+<title>Macchinari V4.4</title>
 <style>
-*{box-sizing:border-box}body{margin:0;padding:24px 18px;font-family:Arial,Helvetica,sans-serif;background:#fff;color:#222}
+*{box-sizing:border-box}
+body{margin:0;padding:24px 18px;font-family:Arial,Helvetica,sans-serif;background:#fff;color:#222}
 h1{margin:0 0 26px;text-align:center;font-size:30px;font-weight:700}
-button{width:100%;padding:18px;border:2px solid #888;border-radius:14px;background:#fff;font-size:24px;font-weight:700;cursor:pointer}
-button:disabled{opacity:.45;cursor:not-allowed}
-#machines{margin-top:26px}.machine{margin-bottom:24px;padding:20px 24px;border:2px solid #ddd;border-radius:16px}
-.machine-title{margin-bottom:12px;font-size:24px;font-weight:700}select{width:100%;min-height:48px;padding:6px 12px;border:1px solid #999;border-radius:10px;background:#fff;font-size:21px}
+button{font-family:inherit;cursor:pointer}
+#addMachine{width:100%;padding:18px;border:2px solid #888;border-radius:14px;background:#fff;font-size:24px;font-weight:700}
+#addMachine:disabled{opacity:.45;cursor:not-allowed}
+#machines{margin-top:26px}
+.machine{position:relative;margin-bottom:24px;padding:20px 24px;border:2px solid #ddd;border-radius:16px}
+.machine-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.machine-title{font-size:24px;font-weight:700}
+.remove-machine{flex:0 0 auto;width:auto;padding:8px 12px;border:1px solid #aaa;border-radius:9px;background:#fff;font-size:15px;font-weight:700}
+select,.spare-search,.qty{width:100%;min-height:48px;padding:6px 12px;border:1px solid #999;border-radius:10px;background:#fff;font-size:19px}
+.machine-select{margin-bottom:18px}
+.section-title{margin:12px 0 10px;font-size:19px;font-weight:700}
+.spare-list{margin-top:8px}
+.spare-row{position:relative;margin-top:12px;padding:14px;border:1px solid #ccc;border-radius:12px;background:#fafafa}
+.spare-grid{display:grid;grid-template-columns:minmax(0,1fr) 115px 85px auto;gap:8px;align-items:center}
+.spare-search{min-height:44px;font-size:17px}
+.spare-unit{min-height:44px;font-size:16px}
+.qty{min-height:44px;font-size:17px}
+.remove-spare{width:auto;min-height:44px;padding:8px 10px;border:1px solid #aaa;border-radius:8px;background:#fff;font-size:16px;font-weight:700}
+.spare-results{display:none;position:relative;z-index:5;margin-top:4px;border:1px solid #aaa;border-radius:8px;background:#fff;max-height:190px;overflow:auto}
+.spare-option{padding:10px 12px;border-bottom:1px solid #eee;font-size:16px;cursor:pointer}
+.spare-option:last-child{border-bottom:0}
+.spare-option:hover{background:#f1f1f1}
+.add-spare{width:auto;margin-top:10px;padding:9px 13px;border:1px solid #888;border-radius:9px;background:#fff;font-size:16px;font-weight:700}
+.selected-spare{margin-top:6px;font-size:14px;color:#555;min-height:18px}
 .status{margin-top:14px;padding:10px 12px;border:1px dashed #aaa;border-radius:8px;font-size:16px;text-align:center;color:#555;word-break:break-word}
-#rawStatus{font-size:12px;text-align:left;max-height:180px;overflow:auto}#emptyStatus{margin-top:18px;padding:14px;border-radius:10px;background:#f5f5f5;text-align:center;color:#666;font-size:17px;display:none}
-</style></head>
+#bridgeStatus{display:none}
+#emptyStatus{margin-top:18px;padding:14px;border-radius:10px;background:#f5f5f5;text-align:center;color:#666;font-size:17px;display:none}
+.note{margin-top:10px;font-size:13px;color:#666}
+@media(max-width:650px){
+ .spare-grid{grid-template-columns:1fr 95px 75px auto}
+ .spare-search{grid-column:1/-1}
+}
+</style>
+</head>
 <body>
-<h1>MACCHINARI — TEST V4.3e</h1>
+<h1>MACCHINARI — TEST V4.4</h1>
 <button id="addMachine" type="button" disabled>+ Aggiungi macchinario</button>
 <div id="bridgeStatus" class="status">ID Cliente ponte: lettura in corso…</div>
-<div id="rawStatus" class="status">Diagnostica API: in attesa…</div>
 <div id="emptyStatus">Nessun macchinario disponibile per questo cliente.</div>
 <div id="machines"></div>
+
 <script>
 (function(){
  const ALL_MACHINES=[
@@ -31,58 +59,201 @@ button:disabled{opacity:.45;cursor:not-allowed}
   {id:'4',clientId:'1',label:'Orved — Confezionatrice sottovuoto — C 33'},
   {id:'5',clientId:'3',label:'Orved — Termosaldatrice — TS 35'}
  ];
- let counter=0,availableMachines=[];
+
+ // Per questo test i ricambi sono locali: introduciamo la struttura gerarchica
+ // senza ancora dipendere dal backend esterno.
+ const RICAMBI=[
+  {code:'ABC123',name:'Guarnizione coperchio'},
+  {code:'DEF456',name:'Resistenza saldante'},
+  {code:'GHI789',name:'Nastro teflon'},
+  {code:'LMN012',name:'O-ring'},
+  {code:'PRS345',name:'Sensore temperatura'},
+  {code:'XYZ678',name:'Olio lubrificante'}
+ ];
+ const UNITS=['pezzi','cm','litri','Kg'];
+
+ let counter=0,availableMachines=[], bridgeId='';
+
  const $=id=>document.getElementById(id);
- function showStatus(v){$('bridgeStatus').textContent='ID Cliente ponte: '+(v||'(nessun valore)')}
- function raw(v){try{return JSON.stringify(v,null,2)}catch(e){return String(v)}}
+
+ function showStatus(v){
+   $('bridgeStatus').textContent='ID Cliente ponte: '+(v||'(nessun valore)');
+ }
+
  function extract(v){
    if(v===null||v===undefined)return '';
    if(typeof v==='string'||typeof v==='number')return String(v).trim();
    if(Array.isArray(v)){
-     // Prefer explicit value objects; do not interpret field names as values.
-     for(const item of v){const r=extract(item);if(r)return r} return '';
+     for(const item of v){const r=extract(item);if(r)return r}
+     return '';
    }
    if(typeof v==='object'){
-     const preferred=['value','answer','answerValue'];
-     for(const k of preferred){if(v[k]!==undefined&&v[k]!==null){const r=extract(v[k]);if(r)return r}}
-     // Common Jotform response shapes: {scriviUna26: '1'} or {scriviUna26:{value:'1'}}
-     if(v.scriviUna26!==undefined){const r=extract(v.scriviUna26);if(r)return r}
-     if(v.input_26!==undefined){const r=extract(v.input_26);if(r)return r}
-     if(v['26']!==undefined){const r=extract(v['26']);if(r)return r}
-     // Array-like object containing {name:'scriviUna26', value:'1'}
+     for(const k of ['value','answer','answerValue']){
+       if(v[k]!==undefined&&v[k]!==null){const r=extract(v[k]);if(r)return r}
+     }
+     for(const k of ['scriviUna26','input_26','26']){
+       if(v[k]!==undefined){const r=extract(v[k]);if(r)return r}
+     }
      if(v.name==='scriviUna26'&&v.val!==undefined)return extract(v.val);
    }
    return '';
  }
+
  function renderForClient(id){
+   bridgeId=id||'';
    availableMachines=ALL_MACHINES.filter(m=>m.clientId===id);
-   $('machines').innerHTML='';counter=0;
+   $('machines').innerHTML='';
+   counter=0;
    $('emptyStatus').style.display=availableMachines.length?'none':'block';
    $('addMachine').disabled=!availableMachines.length;
  }
+
+ function createSpareRow(container){
+   const row=document.createElement('div');
+   row.className='spare-row';
+
+   const grid=document.createElement('div');
+   grid.className='spare-grid';
+
+   const search=document.createElement('input');
+   search.className='spare-search';
+   search.type='text';
+   search.placeholder='Cerca ricambio per codice o descrizione…';
+   search.autocomplete='off';
+
+   const unit=document.createElement('select');
+   unit.className='spare-unit';
+   UNITS.forEach(u=>{
+     const o=document.createElement('option');
+     o.value=u;o.textContent=u;unit.appendChild(o);
+   });
+
+   const qty=document.createElement('input');
+   qty.className='qty';
+   qty.type='number';
+   qty.min='0';
+   qty.step='any';
+   qty.value='1';
+   qty.placeholder='Qtà';
+
+   const remove=document.createElement('button');
+   remove.type='button';
+   remove.className='remove-spare';
+   remove.textContent='Rimuovi';
+
+   const results=document.createElement('div');
+   results.className='spare-results';
+
+   const selected=document.createElement('div');
+   selected.className='selected-spare';
+
+   let selectedPart=null;
+
+   function showResults(){
+     const q=search.value.trim().toLowerCase();
+     results.innerHTML='';
+     const matches=RICAMBI.filter(r=>
+       !q || r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q)
+     );
+     matches.slice(0,20).forEach(r=>{
+       const opt=document.createElement('div');
+       opt.className='spare-option';
+       opt.textContent=r.code+' — '+r.name;
+       opt.addEventListener('click',()=>{
+         selectedPart=r;
+         search.value=r.code;
+         selected.textContent='Selezionato: '+r.code+' — '+r.name;
+         results.style.display='none';
+       });
+       results.appendChild(opt);
+     });
+     results.style.display=matches.length?'block':'none';
+   }
+
+   search.addEventListener('focus',showResults);
+   search.addEventListener('input',()=>{
+     selectedPart=null;
+     selected.textContent='';
+     showResults();
+   });
+   document.addEventListener('click',e=>{
+     if(!row.contains(e.target))results.style.display='none';
+   });
+
+   remove.addEventListener('click',()=>row.remove());
+
+   grid.append(search,unit,qty,remove);
+   row.append(grid,results,selected);
+   container.appendChild(row);
+ }
+
  function addMachine(){
-   counter++;const b=document.createElement('div');b.className='machine';
-   const t=document.createElement('div');t.className='machine-title';t.textContent='Macchinario '+counter;
-   const s=document.createElement('select');s.innerHTML='<option value="">-- Seleziona un macchinario --</option>';
-   availableMachines.forEach(m=>{const o=document.createElement('option');o.value=m.id;o.textContent=m.label;s.appendChild(o)});
-   b.append(t,s);$('machines').appendChild(b);
+   counter++;
+   const b=document.createElement('div');
+   b.className='machine';
+
+   const head=document.createElement('div');
+   head.className='machine-head';
+
+   const t=document.createElement('div');
+   t.className='machine-title';
+   t.textContent='Macchinario '+counter;
+
+   const removeMachine=document.createElement('button');
+   removeMachine.type='button';
+   removeMachine.className='remove-machine';
+   removeMachine.textContent='Rimuovi macchinario';
+
+   head.append(t,removeMachine);
+
+   const s=document.createElement('select');
+   s.className='machine-select';
+   s.innerHTML='<option value="">-- Seleziona un macchinario --</option>';
+   availableMachines.forEach(m=>{
+     const o=document.createElement('option');
+     o.value=m.id;o.textContent=m.label;s.appendChild(o);
+   });
+
+   const title=document.createElement('div');
+   title.className='section-title';
+   title.textContent='RICAMBI UTILIZZATI';
+
+   const spareList=document.createElement('div');
+   spareList.className='spare-list';
+
+   const addSpare=document.createElement('button');
+   addSpare.type='button';
+   addSpare.className='add-spare';
+   addSpare.textContent='+ Aggiungi ricambio';
+   addSpare.addEventListener('click',()=>createSpareRow(spareList));
+
+   removeMachine.addEventListener('click',()=>b.remove());
+
+   b.append(head,s,title,spareList,addSpare);
+   $('machines').appendChild(b);
  }
- function process(label,data){
-   $('rawStatus').textContent=label+'\n'+raw(data);
-   const id=extract(data);showStatus(id);renderForClient(id);
+
+ function process(data){
+   const id=extract(data);
+   showStatus(id);
+   if(id!==bridgeId)renderForClient(id);
  }
+
  function readByName(){
    if(typeof JFCustomWidget.getFieldsValueByName!=='function')return;
-   JFCustomWidget.getFieldsValueByName(['scriviUna26'],function(data){process('getFieldsValueByName',data)});
+   JFCustomWidget.getFieldsValueByName(['scriviUna26'],function(data){process(data)});
  }
+
  $('addMachine').addEventListener('click',addMachine);
+
  JFCustomWidget.subscribe('ready',function(){
    readByName();
    if(typeof JFCustomWidget.listenFromField==='function'){
-     // input_26 is the actual native input id. This lets the widget react when the condition copies the client ID.
-     JFCustomWidget.listenFromField('input_26','change',function(value){process('listenFromField change',value)});
-     JFCustomWidget.listenFromField('input_26','keyup',function(value){process('listenFromField keyup',value)});
+     JFCustomWidget.listenFromField('input_26','change',function(value){process(value)});
+     JFCustomWidget.listenFromField('input_26','keyup',function(value){process(value)});
    }
  });
 })();
-</script></body></html>
+</script>
+</body>
+</html>
