@@ -22,7 +22,7 @@ button{padding:9px 12px;border:1px solid #888;border-radius:4px;background:#fff;
 .actions button{flex:1}
 .status{margin-top:8px}
 </style>
-<script src="https://js.jotform.com/JotFormCustomWidget.min.js"></script>
+<script src="https://cdn.jotfor.ms/s/umd/latest/for-custom-widgets.js"></script>
 </head>
 <body>
 <h3>MACCHINARIO</h3>
@@ -91,16 +91,38 @@ function clientFromValue(v){
  const id=raw;
  return SAMPLE_CLIENTS.find(c=>String(c.id)===id)||null;
 }
+function extractBridgeValue(data){
+ let d=data;
+ // Jotform may return the payload directly or wrapped in {data: ...}.
+ if(d && typeof d==='object' && Object.prototype.hasOwnProperty.call(d,'data')) d=d.data;
+ if(typeof d==='string' || typeof d==='number') return String(d).trim();
+ if(d && typeof d==='object'){
+   return String(d[CLIENT_FIELD_NAME] ?? d.input_26 ?? d['26'] ?? d.value ?? d[Object.keys(d)[0]] ?? '').trim();
+ }
+ return '';
+}
 function getBridgeValue(callback){
- if(!window.JFCustomWidget || !JFCustomWidget.getFieldsValueByName){callback('');return;}
- JFCustomWidget.getFieldsValueByName([CLIENT_FIELD_NAME],function(data){
-   let value='';
-   if(typeof data==='string') value=data;
-   else if(data && typeof data==='object'){
-     value=data[CLIENT_FIELD_NAME] ?? data[Object.keys(data)[0]] ?? '';
-   }
-   callback(String(value??'').trim());
- });
+ if(!window.JFCustomWidget){callback('');return;}
+ let done=false;
+ const finish=v=>{if(done)return; done=true; callback(v)};
+ // The bridge is a native Short Text field: input_26.
+ if(JFCustomWidget.getFieldsValueById){
+   try{
+     JFCustomWidget.getFieldsValueById(['input_26'],function(data){
+       const v=extractBridgeValue(data);
+       if(v) finish(v);
+       else if(JFCustomWidget.getFieldsValueByName){
+         try{JFCustomWidget.getFieldsValueByName([CLIENT_FIELD_NAME],d=>finish(extractBridgeValue(d)));}
+         catch(e){finish('');}
+       } else finish('');
+     });
+     return;
+   }catch(e){}
+ }
+ if(JFCustomWidget.getFieldsValueByName){
+   try{JFCustomWidget.getFieldsValueByName([CLIENT_FIELD_NAME],d=>finish(extractBridgeValue(d)));}
+   catch(e){finish('');}
+ }else finish('');
 }
 function applyClientValue(v){
  const c=clientFromValue(v);
@@ -164,10 +186,6 @@ if(window.JFCustomWidget){
  });
  JFCustomWidget.subscribe('submit',()=>JFCustomWidget.sendSubmit({valid:!!selectedMachine,value:JSON.stringify(selectedMachine||{})}));
 }
-function readClientFromBridge(){
- getBridgeValue(applyClientValue);
-}
-
 scheduleResize();
 </script>
 </body>
