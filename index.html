@@ -20,7 +20,7 @@
 </style>
 </head>
 <body>
-  <h1>MACCHINARI — TEST V4.3cc</h1>
+  <h1>MACCHINARI — TEST V4.3d</h1>
   <button id="addMachine" type="button" disabled>+ Aggiungi macchinario</button>
   <div id="bridgeStatus">ID Cliente ponte: lettura in corso…</div>
   <div id="emptyStatus">Nessun macchinario disponibile per questo cliente.</div>
@@ -49,7 +49,21 @@
     }
 
     if (typeof value === 'object') {
-      const keys = ['scriviUna26','26','input_26','value','answer','answerValue'];
+      // Jotform can return requested field values as objects/arrays.
+      // When an item has a field name plus a value, the value is what we need.
+      if (value.value !== undefined && value.value !== null) {
+        const v = normalizeClientId(value.value);
+        if (v) return v;
+      }
+      if (value.answer !== undefined && value.answer !== null) {
+        const v = normalizeClientId(value.answer);
+        if (v) return v;
+      }
+      if (value.answerValue !== undefined && value.answerValue !== null) {
+        const v = normalizeClientId(value.answerValue);
+        if (v) return v;
+      }
+      const keys = ['scriviUna26','26','input_26'];
       for (const key of keys) {
         if (value[key] !== undefined && value[key] !== null) {
           const result = normalizeClientId(value[key]);
