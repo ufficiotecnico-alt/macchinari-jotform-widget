@@ -4,150 +4,85 @@
 <script src="https://js.jotform.com/JotFormCustomWidget.min.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Macchinari V4.3c</title>
+<title>Macchinari V4.3e</title>
 <style>
-  * { box-sizing: border-box; }
-  body { margin:0; padding:24px 18px; font-family:Arial,Helvetica,sans-serif; background:#fff; color:#222; }
-  h1 { margin:0 0 26px; text-align:center; font-size:30px; font-weight:700; }
-  #addMachine { width:100%; padding:18px; border:2px solid #888; border-radius:14px; background:#fff; font-size:24px; font-weight:700; cursor:pointer; }
-  #addMachine:disabled { opacity:.45; cursor:not-allowed; }
-  #machines { margin-top:26px; }
-  .machine { margin-bottom:24px; padding:20px 24px; border:2px solid #ddd; border-radius:16px; }
-  .machine-title { margin-bottom:12px; font-size:24px; font-weight:700; }
-  select { width:100%; min-height:48px; padding:6px 12px; border:1px solid #999; border-radius:10px; background:#fff; font-size:21px; }
-  #bridgeStatus { margin-top:14px; padding:10px 12px; border:1px dashed #aaa; border-radius:8px; font-size:16px; text-align:center; color:#555; }
-  #emptyStatus { margin-top:18px; padding:14px; border-radius:10px; background:#f5f5f5; text-align:center; color:#666; font-size:17px; display:none; }
-</style>
-</head>
+*{box-sizing:border-box}body{margin:0;padding:24px 18px;font-family:Arial,Helvetica,sans-serif;background:#fff;color:#222}
+h1{margin:0 0 26px;text-align:center;font-size:30px;font-weight:700}
+button{width:100%;padding:18px;border:2px solid #888;border-radius:14px;background:#fff;font-size:24px;font-weight:700;cursor:pointer}
+button:disabled{opacity:.45;cursor:not-allowed}
+#machines{margin-top:26px}.machine{margin-bottom:24px;padding:20px 24px;border:2px solid #ddd;border-radius:16px}
+.machine-title{margin-bottom:12px;font-size:24px;font-weight:700}select{width:100%;min-height:48px;padding:6px 12px;border:1px solid #999;border-radius:10px;background:#fff;font-size:21px}
+.status{margin-top:14px;padding:10px 12px;border:1px dashed #aaa;border-radius:8px;font-size:16px;text-align:center;color:#555;word-break:break-word}
+#rawStatus{font-size:12px;text-align:left;max-height:180px;overflow:auto}#emptyStatus{margin-top:18px;padding:14px;border-radius:10px;background:#f5f5f5;text-align:center;color:#666;font-size:17px;display:none}
+</style></head>
 <body>
-  <h1>MACCHINARI — TEST V4.3d</h1>
-  <button id="addMachine" type="button" disabled>+ Aggiungi macchinario</button>
-  <div id="bridgeStatus">ID Cliente ponte: lettura in corso…</div>
-  <div id="emptyStatus">Nessun macchinario disponibile per questo cliente.</div>
-  <div id="machines"></div>
-
+<h1>MACCHINARI — TEST V4.3e</h1>
+<button id="addMachine" type="button" disabled>+ Aggiungi macchinario</button>
+<div id="bridgeStatus" class="status">ID Cliente ponte: lettura in corso…</div>
+<div id="rawStatus" class="status">Diagnostica API: in attesa…</div>
+<div id="emptyStatus">Nessun macchinario disponibile per questo cliente.</div>
+<div id="machines"></div>
 <script>
-(function () {
-  const ALL_MACHINES = [
-    { id:'1', clientId:'2', label:'FrigoTech — Unità di refrigerazione — FT-220' },
-    { id:'2', clientId:'1', label:'Komatsu — Compressore industriale — KX-400' },
-    { id:'3', clientId:'1', label:'Orved — Confezionatrice sottovuoto — VM 18' },
-    { id:'4', clientId:'1', label:'Orved — Confezionatrice sottovuoto — C 33' },
-    { id:'5', clientId:'3', label:'Orved — Termosaldatrice — TS 35' }
-  ];
-
-  let counter = 0;
-  let availableMachines = [];
-
-  function normalizeClientId(value) {
-    if (value === null || value === undefined) return '';
-    if (typeof value === 'string' || typeof value === 'number') return String(value).trim();
-
-    if (Array.isArray(value)) {
-      if (!value.length) return '';
-      return normalizeClientId(value[0]);
-    }
-
-    if (typeof value === 'object') {
-      // Jotform can return requested field values as objects/arrays.
-      // When an item has a field name plus a value, the value is what we need.
-      if (value.value !== undefined && value.value !== null) {
-        const v = normalizeClientId(value.value);
-        if (v) return v;
-      }
-      if (value.answer !== undefined && value.answer !== null) {
-        const v = normalizeClientId(value.answer);
-        if (v) return v;
-      }
-      if (value.answerValue !== undefined && value.answerValue !== null) {
-        const v = normalizeClientId(value.answerValue);
-        if (v) return v;
-      }
-      const keys = ['scriviUna26','26','input_26'];
-      for (const key of keys) {
-        if (value[key] !== undefined && value[key] !== null) {
-          const result = normalizeClientId(value[key]);
-          if (result) return result;
-        }
-      }
-      for (const key in value) {
-        if (!Object.prototype.hasOwnProperty.call(value,key)) continue;
-        const result = normalizeClientId(value[key]);
-        if (result) return result;
-      }
-    }
-    return '';
-  }
-
-  function showStatus(text) {
-    document.getElementById('bridgeStatus').textContent = 'ID Cliente ponte: ' + text;
-  }
-
-  function renderForClient(clientId) {
-    availableMachines = ALL_MACHINES.filter(m => m.clientId === clientId);
-    document.getElementById('machines').innerHTML = '';
-    counter = 0;
-    document.getElementById('emptyStatus').style.display = availableMachines.length ? 'none' : 'block';
-    document.getElementById('addMachine').disabled = availableMachines.length === 0;
-  }
-
-  function addMachineBlock() {
-    counter++;
-    const block = document.createElement('div');
-    block.className = 'machine';
-
-    const title = document.createElement('div');
-    title.className = 'machine-title';
-    title.textContent = 'Macchinario ' + counter;
-
-    const select = document.createElement('select');
-    select.innerHTML = '<option value="">-- Seleziona un macchinario --</option>';
-    availableMachines.forEach(function (machine) {
-      const option = document.createElement('option');
-      option.value = machine.id;
-      option.textContent = machine.label;
-      select.appendChild(option);
-    });
-
-    block.appendChild(title);
-    block.appendChild(select);
-    document.getElementById('machines').appendChild(block);
-  }
-
-  function readBridgeAndFilter() {
-    if (!window.JFCustomWidget || typeof window.JFCustomWidget.getFieldsValueByName !== 'function') {
-      showStatus('API nome non disponibile');
-      return;
-    }
-
-    try {
-      // Jotform's documented name-based method uses the field's unique name,
-      // not the question number. The bridge field unique name is scriviUna26.
-      window.JFCustomWidget.getFieldsValueByName(['scriviUna26'], function (data) {
-        const raw = data;
-        const clientId = normalizeClientId(
-          raw && typeof raw === 'object' && raw.data !== undefined ? raw.data : raw
-        );
-        showStatus(clientId || '(nessun valore)');
-        renderForClient(clientId);
-      });
-    } catch (e) {
-      showStatus('errore lettura nome');
-      document.getElementById('emptyStatus').style.display = 'block';
-      document.getElementById('addMachine').disabled = true;
-    }
-  }
-
-  document.getElementById('addMachine').addEventListener('click', addMachineBlock);
-
-  if (window.JFCustomWidget && typeof window.JFCustomWidget.subscribe === 'function') {
-    window.JFCustomWidget.subscribe('ready', function () {
-      readBridgeAndFilter();
-    });
-  } else {
-    showStatus('API non disponibile');
-  }
+(function(){
+ const ALL_MACHINES=[
+  {id:'1',clientId:'2',label:'FrigoTech — Unità di refrigerazione — FT-220'},
+  {id:'2',clientId:'1',label:'Komatsu — Compressore industriale — KX-400'},
+  {id:'3',clientId:'1',label:'Orved — Confezionatrice sottovuoto — VM 18'},
+  {id:'4',clientId:'1',label:'Orved — Confezionatrice sottovuoto — C 33'},
+  {id:'5',clientId:'3',label:'Orved — Termosaldatrice — TS 35'}
+ ];
+ let counter=0,availableMachines=[];
+ const $=id=>document.getElementById(id);
+ function showStatus(v){$('bridgeStatus').textContent='ID Cliente ponte: '+(v||'(nessun valore)')}
+ function raw(v){try{return JSON.stringify(v,null,2)}catch(e){return String(v)}}
+ function extract(v){
+   if(v===null||v===undefined)return '';
+   if(typeof v==='string'||typeof v==='number')return String(v).trim();
+   if(Array.isArray(v)){
+     // Prefer explicit value objects; do not interpret field names as values.
+     for(const item of v){const r=extract(item);if(r)return r} return '';
+   }
+   if(typeof v==='object'){
+     const preferred=['value','answer','answerValue'];
+     for(const k of preferred){if(v[k]!==undefined&&v[k]!==null){const r=extract(v[k]);if(r)return r}}
+     // Common Jotform response shapes: {scriviUna26: '1'} or {scriviUna26:{value:'1'}}
+     if(v.scriviUna26!==undefined){const r=extract(v.scriviUna26);if(r)return r}
+     if(v.input_26!==undefined){const r=extract(v.input_26);if(r)return r}
+     if(v['26']!==undefined){const r=extract(v['26']);if(r)return r}
+     // Array-like object containing {name:'scriviUna26', value:'1'}
+     if(v.name==='scriviUna26'&&v.val!==undefined)return extract(v.val);
+   }
+   return '';
+ }
+ function renderForClient(id){
+   availableMachines=ALL_MACHINES.filter(m=>m.clientId===id);
+   $('machines').innerHTML='';counter=0;
+   $('emptyStatus').style.display=availableMachines.length?'none':'block';
+   $('addMachine').disabled=!availableMachines.length;
+ }
+ function addMachine(){
+   counter++;const b=document.createElement('div');b.className='machine';
+   const t=document.createElement('div');t.className='machine-title';t.textContent='Macchinario '+counter;
+   const s=document.createElement('select');s.innerHTML='<option value="">-- Seleziona un macchinario --</option>';
+   availableMachines.forEach(m=>{const o=document.createElement('option');o.value=m.id;o.textContent=m.label;s.appendChild(o)});
+   b.append(t,s);$('machines').appendChild(b);
+ }
+ function process(label,data){
+   $('rawStatus').textContent=label+'\n'+raw(data);
+   const id=extract(data);showStatus(id);renderForClient(id);
+ }
+ function readByName(){
+   if(typeof JFCustomWidget.getFieldsValueByName!=='function')return;
+   JFCustomWidget.getFieldsValueByName(['scriviUna26'],function(data){process('getFieldsValueByName',data)});
+ }
+ $('addMachine').addEventListener('click',addMachine);
+ JFCustomWidget.subscribe('ready',function(){
+   readByName();
+   if(typeof JFCustomWidget.listenFromField==='function'){
+     // input_26 is the actual native input id. This lets the widget react when the condition copies the client ID.
+     JFCustomWidget.listenFromField('input_26','change',function(value){process('listenFromField change',value)});
+     JFCustomWidget.listenFromField('input_26','keyup',function(value){process('listenFromField keyup',value)});
+   }
+ });
 })();
-</script>
-</body>
-</html>
+</script></body></html>
