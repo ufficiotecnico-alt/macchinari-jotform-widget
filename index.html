@@ -93,11 +93,20 @@ function clientFromValue(v){
  return SAMPLE_CLIENTS.find(c=>(c.name+' '+c.company+' '+c.address+' '+c.city+' '+c.province).toLowerCase().includes(q))||null;
 }
 function extractFieldValue(res){
- const d=res?.data;
- if(typeof d==='string')return d;
- if(Array.isArray(d)&&d.length)return typeof d[0]==='object'?Object.values(d[0])[0]:d[0];
- if(d&&typeof d==='object'){const vals=Object.values(d);return vals.length?String(vals[0]??''):''}
- return '';
+ // Gestisce sia la risposta {data: ...} sia una risposta diretta {scriviUna25: ...}.
+ const unwrap=v=>{
+   if(v==null)return '';
+   if(typeof v==='string'||typeof v==='number'||typeof v==='boolean')return String(v);
+   if(Array.isArray(v))return v.length?unwrap(v[0]):'';
+   if(typeof v==='object'){
+     if('value' in v)return unwrap(v.value);
+     if('data' in v)return unwrap(v.data);
+     const vals=Object.values(v);
+     return vals.length?unwrap(vals[0]):'';
+   }
+   return '';
+ };
+ return unwrap(res?.data ?? res);
 }
 function restoreMachineValue(v){
  const raw=String(v??'').trim();
@@ -123,9 +132,16 @@ function applyClientValue(v){
  }
  send();scheduleResize();
 }
+let lastClientRaw='';
 function readClient(){
  if(!clientFieldName||!window.JFCustomWidget?.getFieldsValueByName)return;
- JFCustomWidget.getFieldsValueByName([clientFieldName],res=>applyClientValue(extractFieldValue(res)));
+ JFCustomWidget.getFieldsValueByName([clientFieldName],res=>{
+   const raw=extractFieldValue(res);
+   if(raw!==lastClientRaw){
+     lastClientRaw=raw;
+     applyClientValue(raw);
+   }
+ });
 }
 function renderResults(list){
  $('machineResults').innerHTML=list.map(m=>`<div class="result" data-id="${esc(m.id)}"><strong>${esc(m.brand)} — ${esc(m.desc)}</strong><br><span class="muted">${esc(m.model)} · Matricola ${esc(m.serial)}</span></div>`).join('');
@@ -166,6 +182,8 @@ if(window.JFCustomWidget){
    }
    scheduleResize();
    JFCustomWidget.listenFromField(clientFieldName,'change',readClient);
+   // Fallback: alcuni moduli non propagano subito il change generato da un custom widget.
+   setInterval(readClient,700);
  });
  JFCustomWidget.subscribe('submit',()=>JFCustomWidget.sendSubmit({valid:!!selectedMachine,value:JSON.stringify(selectedMachine||{})}));
 }
