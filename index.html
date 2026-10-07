@@ -219,7 +219,6 @@ function applyClientValue(value){
       'In attesa del cliente selezionato nel modulo.';
   }
 
-  sendData();
 }
 
 function machineText(m){
@@ -283,7 +282,6 @@ function render(){
       select.addEventListener('change',e=>{
         block.machineId=e.target.value;
         render();
-        sendData();
       });
     }
 
@@ -292,7 +290,6 @@ function render(){
       addPart.addEventListener('click',()=>{
         block.parts.push(newPart());
         render();
-        sendData();
       });
       renderParts(section,block);
     }
@@ -302,7 +299,6 @@ function render(){
       remove.addEventListener('click',()=>{
         machineBlocks.splice(index,1);
         render();
-        sendData();
       });
     }
   });
@@ -361,20 +357,17 @@ function renderParts(section,block){
     const unit=row.querySelector('.unit');
     if(unit) unit.addEventListener('change',e=>{
       part.unit=e.target.value;
-      sendData();
     });
 
     const qty=row.querySelector('.qty');
     if(qty) qty.addEventListener('input',e=>{
       part.qty=e.target.value;
-      sendData();
     });
 
     const remove=row.querySelector('.remove-part');
     remove.addEventListener('click',()=>{
       block.parts.splice(index,1);
       render();
-      sendData();
     });
   });
 }
@@ -414,7 +407,6 @@ async function searchParts(part,row){
         part.query='';
         if(UNITS.includes(item.unit)) part.unit=item.unit;
         render();
-        sendData();
       });
     });
   }catch(e){
@@ -428,7 +420,6 @@ document.getElementById('addMachine').addEventListener('click',()=>{
   if(!clientId) return;
   machineBlocks.push(newBlock());
   render();
-  sendData();
 });
 
 if(window.JFCustomWidget){
