@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Macchinari V4.1</title>
+<title>Macchinari V4.2</title>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -53,14 +53,15 @@
 </style>
 </head>
 <body>
-  <h1>MACCHINARI — TEST V4.1</h1>
+  <h1>MACCHINARI — TEST V4.2</h1>
 
   <button id="addMachine" type="button">+ Aggiungi macchinario</button>
+  <div id="bridgeStatus" style="margin-top:14px;padding:10px 12px;border:1px dashed #aaa;border-radius:8px;font-size:16px;text-align:center;color:#555;">ID Cliente ponte: lettura in corso…</div>
   <div id="machines"></div>
 
 <script>
 (function () {
-  // V4.1: primo test incrementale.
+  // V4.2: primo test incrementale.
   // L'unica aggiunta rispetto alla V4 minimale è l'inizializzazione
   // della libreria Jotform Custom Widget, senza usare altri metodi API.
 
@@ -101,12 +102,46 @@
     });
   }
 
-  // In un ambiente Jotform, inizializza dopo che la libreria è pronta.
-  // Se JFCustomWidget non è presente, il test resta comunque utilizzabile:
-  // in quel caso partiamo direttamente con la stessa UI.
+  function showBridgeValue(value) {
+    let text = '';
+
+    try {
+      if (value === null || value === undefined) {
+        text = '(nessun valore)';
+      } else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        text = String(value);
+      } else {
+        text = JSON.stringify(value);
+      }
+    } catch (e) {
+      text = '(valore non leggibile)';
+    }
+
+    const status = document.getElementById('bridgeStatus');
+    if (status) status.textContent = 'ID Cliente ponte: ' + text;
+  }
+
+  function readBridge() {
+    if (!window.JFCustomWidget || typeof window.JFCustomWidget.getFieldsValueById !== 'function') {
+      showBridgeValue('API non disponibile');
+      return;
+    }
+
+    try {
+      window.JFCustomWidget.getFieldsValueById(['26'], function (value) {
+        showBridgeValue(value);
+      });
+    } catch (e) {
+      showBridgeValue('errore lettura');
+    }
+  }
+
+  // V4.2: aggiungiamo esclusivamente la lettura del campo ponte ID 26.
+  // Nessun filtro dei macchinari, nessun listener, nessun polling, nessun sendData.
   if (window.JFCustomWidget && typeof window.JFCustomWidget.subscribe === 'function') {
     window.JFCustomWidget.subscribe('ready', function () {
       initWidget();
+      readBridge();
     });
   } else {
     initWidget();
