@@ -20,6 +20,7 @@ button.danger{border:0;color:#a00000;background:transparent;text-align:left;padd
 .machine-list{margin-top:6px}
 .machine-option{padding:10px;border:1px solid #ddd;border-radius:8px;margin-top:6px;cursor:pointer;line-height:1.35}
 .machine-option:hover{background:#f5f5f5}
+.machine-select{font-size:15px;min-height:44px}
 .selected-machine{padding:10px;border-radius:8px;background:#f7f7f7;border:1px solid #ddd;line-height:1.4}
 .row{border-top:1px solid #e5e5e5;padding-top:10px;margin-top:10px}
 .row:first-child{border-top:0;margin-top:0;padding-top:0}
@@ -75,12 +76,10 @@ function esc(v){
 }
 
 function resizeWidget(){
-  if(window.JFCustomWidget && JFCustomWidget.requestFrameResize){
-    const h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight) + 12;
-    JFCustomWidget.requestFrameResize({height:h});
-  }
+  /* Temporaneamente nessun resize dinamico:
+     evita che Jotform ricrei l'iframe durante le interazioni. */
 }
-function scheduleResize(){ requestAnimationFrame(resizeWidget); }
+function scheduleResize(){}
 
 function filteredMachines(){
   return SAMPLE_MACHINES.filter(m => String(m.clientId) === String(clientId));
@@ -138,26 +137,55 @@ function sendData(){
   }
 }
 
+function extractBridgeValue(data){
+  if(data == null) return '';
+
+  if(typeof data === 'string' || typeof data === 'number'){
+    return String(data).trim();
+  }
+
+  if(Array.isArray(data)){
+    for(const item of data){
+      const v=extractBridgeValue(item);
+      if(v) return v;
+    }
+    return '';
+  }
+
+  if(typeof data === 'object'){
+    const preferred=[
+      CLIENT_FIELD_NAME,
+      '26',
+      'input_26',
+      'value',
+      'answer',
+      'answerValue'
+    ];
+
+    for(const key of preferred){
+      if(Object.prototype.hasOwnProperty.call(data,key)){
+        const v=extractBridgeValue(data[key]);
+        if(v) return v;
+      }
+    }
+
+    for(const key of Object.keys(data)){
+      const v=extractBridgeValue(data[key]);
+      if(v) return v;
+    }
+  }
+
+  return '';
+}
+
 function readBridge(){
   if(!window.JFCustomWidget) return;
-
-  let done = false;
-
-  const finish = value => {
-    if(done) return;
-    done = true;
-    applyClientValue(value);
-  };
 
   if(JFCustomWidget.getFieldsValueById){
     try{
       JFCustomWidget.getFieldsValueById(['26'], data=>{
-        let v='';
-        if(typeof data === 'string') v=data;
-        else if(data && typeof data === 'object'){
-          v=data['26'] ?? data['input_26'] ?? data[Object.keys(data)[0]] ?? '';
-        }
-        if(String(v).trim()) finish(v);
+        const v=extractBridgeValue(data);
+        if(v) applyClientValue(v);
       });
     }catch(e){}
   }
@@ -165,12 +193,8 @@ function readBridge(){
   if(JFCustomWidget.getFieldsValueByName){
     try{
       JFCustomWidget.getFieldsValueByName([CLIENT_FIELD_NAME], data=>{
-        let v='';
-        if(typeof data === 'string') v=data;
-        else if(data && typeof data === 'object'){
-          v=data[CLIENT_FIELD_NAME] ?? data[Object.keys(data)[0]] ?? '';
-        }
-        if(String(v).trim()) finish(v);
+        const v=extractBridgeValue(data);
+        if(v) applyClientValue(v);
       });
     }catch(e){}
   }
@@ -196,7 +220,6 @@ function applyClientValue(value){
   }
 
   sendData();
-  scheduleResize();
 }
 
 function machineText(m){
@@ -209,7 +232,6 @@ function render(){
   if(!clientId){
     root.innerHTML='';
     document.getElementById('addMachine').classList.add('hidden');
-    scheduleResize();
     return;
   }
 
@@ -237,11 +259,16 @@ function render(){
 
         <button type="button" class="danger remove-machine">Rimuovi macchinario</button>
       ` : `
-        <label>Seleziona macchinario</label>
-        <input class="machine-search" type="search" autocomplete="off"
-          placeholder="Cerca marca, descrizione, modello o matricola..."
-          value="${esc(block.machineQuery)}">
-        <div class="machine-list"></div>
+        <label for="machineSelect_${index}">Seleziona macchinario</label>
+        <select class="machine-select" id="machineSelect_${index}">
+          <option value="">-- Seleziona un macchinario --</option>
+          ${filteredMachines().map(m=>`
+            <option value="${esc(m.id)}">
+              ${esc(m.brand)} — ${esc(m.desc)} — ${esc(m.model)} — ${esc(m.serial)}
+            </option>
+          `).join('')}
+        </select>
+        ${filteredMachines().length===0 ? '<div class="empty">Nessun macchinario associato al cliente selezionato.</div>' : ''}
         <button type="button" class="danger remove-machine">Rimuovi macchinario</button>
       `}
     </section>
@@ -251,12 +278,12 @@ function render(){
     const index=Number(section.dataset.block);
     const block=machineBlocks[index];
 
-    const search=section.querySelector('.machine-search');
-    if(search){
-      renderMachineResults(section,block);
-      search.addEventListener('input',e=>{
-        block.machineQuery=e.target.value;
-        renderMachineResults(section,block);
+    const select=section.querySelector('.machine-select');
+    if(select){
+      select.addEventListener('change',e=>{
+        block.machineId=e.target.value;
+        render();
+        sendData();
       });
     }
 
@@ -271,41 +298,13 @@ function render(){
     }
 
     const remove=section.querySelector('.remove-machine');
-    remove.addEventListener('click',()=>{
-      machineBlocks.splice(index,1);
-      render();
-      sendData();
-    });
-  });
-
-  scheduleResize();
-}
-
-function renderMachineResults(section,block){
-  const box=section.querySelector('.machine-list');
-  if(!box) return;
-
-  const q=block.machineQuery.trim().toLowerCase();
-  const list=filteredMachines().filter(m=>{
-    if(!q) return true;
-    return [m.brand,m.desc,m.model,m.serial].join(' ').toLowerCase().includes(q);
-  });
-
-  box.innerHTML=list.map(m=>`
-    <div class="machine-option" data-machine="${esc(m.id)}">
-      <strong>${esc(m.brand)} — ${esc(m.desc)}</strong><br>
-      <span class="muted">${esc(m.model)} · Matricola ${esc(m.serial)}</span>
-    </div>
-  `).join('') || '<div class="empty">Nessun macchinario trovato.</div>';
-
-  box.querySelectorAll('.machine-option').forEach(el=>{
-    el.addEventListener('click',()=>{
-      block.machineId=el.dataset.machine;
-      block.machineQuery='';
-      block.machineResults=[];
-      render();
-      sendData();
-    });
+    if(remove){
+      remove.addEventListener('click',()=>{
+        machineBlocks.splice(index,1);
+        render();
+        sendData();
+      });
+    }
   });
 }
 
