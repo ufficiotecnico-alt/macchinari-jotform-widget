@@ -4,7 +4,7 @@
 <script src="https://js.jotform.com/JotFormCustomWidget.min.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Macchinari V4.3</title>
+<title>Macchinari V4.3c</title>
 <style>
   * { box-sizing: border-box; }
   body { margin:0; padding:24px 18px; font-family:Arial,Helvetica,sans-serif; background:#fff; color:#222; }
@@ -20,7 +20,7 @@
 </style>
 </head>
 <body>
-  <h1>MACCHINARI — TEST V4.3</h1>
+  <h1>MACCHINARI — TEST V4.3cc</h1>
   <button id="addMachine" type="button" disabled>+ Aggiungi macchinario</button>
   <div id="bridgeStatus">ID Cliente ponte: lettura in corso…</div>
   <div id="emptyStatus">Nessun macchinario disponibile per questo cliente.</div>
@@ -101,19 +101,26 @@
   }
 
   function readBridgeAndFilter() {
-    if (!window.JFCustomWidget || typeof window.JFCustomWidget.getFieldsValueById !== 'function') {
-      showStatus('API non disponibile');
+    if (!window.JFCustomWidget || typeof window.JFCustomWidget.getFieldsValueByName !== 'function') {
+      showStatus('API nome non disponibile');
       return;
     }
 
     try {
-      window.JFCustomWidget.getFieldsValueById(['26'], function (value) {
-        const clientId = normalizeClientId(value);
+      // Jotform's documented name-based method uses the field's unique name,
+      // not the question number. The bridge field unique name is scriviUna26.
+      window.JFCustomWidget.getFieldsValueByName(['scriviUna26'], function (data) {
+        const raw = data;
+        const clientId = normalizeClientId(
+          raw && typeof raw === 'object' && raw.data !== undefined ? raw.data : raw
+        );
         showStatus(clientId || '(nessun valore)');
         renderForClient(clientId);
       });
     } catch (e) {
-      showStatus('errore lettura');
+      showStatus('errore lettura nome');
+      document.getElementById('emptyStatus').style.display = 'block';
+      document.getElementById('addMachine').disabled = true;
     }
   }
 
