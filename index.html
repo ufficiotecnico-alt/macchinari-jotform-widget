@@ -3,458 +3,90 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Macchinari e Ricambi</title>
-<script src="https://js.jotform.com/JotFormCustomWidget.min.js"></script>
+<title>Test Macchinari</title>
 <style>
-*{box-sizing:border-box}
-body{margin:0;padding:12px;font-family:Arial,sans-serif;color:#222;background:#fff;font-size:14px}
-h3{margin:0 0 12px;font-size:18px}
-.section{border:1px solid #d5d5d5;border-radius:10px;padding:12px;margin-bottom:12px;background:#fff}
-.machine-title{font-size:16px;font-weight:700;margin-bottom:10px}
-label{display:block;font-weight:700;margin:9px 0 5px}
-input,select,button{width:100%;box-sizing:border-box;font:inherit}
-input,select{padding:10px;border:1px solid #aaa;border-radius:8px;background:#fff}
-button{padding:10px;border:1px solid #888;border-radius:8px;background:#fff;cursor:pointer}
-button.primary{font-weight:700}
-button.danger{border:0;color:#a00000;background:transparent;text-align:left;padding:7px 0;width:auto}
-.machine-list{margin-top:6px}
-.machine-option{padding:10px;border:1px solid #ddd;border-radius:8px;margin-top:6px;cursor:pointer;line-height:1.35}
-.machine-option:hover{background:#f5f5f5}
-.machine-select{font-size:15px;min-height:44px}
-.selected-machine{padding:10px;border-radius:8px;background:#f7f7f7;border:1px solid #ddd;line-height:1.4}
-.row{border-top:1px solid #e5e5e5;padding-top:10px;margin-top:10px}
-.row:first-child{border-top:0;margin-top:0;padding-top:0}
-.result-list{border:1px solid #ddd;border-radius:8px;margin-top:5px;overflow:hidden}
-.result{padding:9px;border-bottom:1px solid #eee;cursor:pointer;line-height:1.35}
-.result:last-child{border-bottom:0}
-.result:hover{background:#f5f5f5}
-.controls{display:flex;gap:8px;margin-top:8px}
-.controls>div{flex:1}
-small{display:block;margin-bottom:4px;font-weight:700}
-.actions{display:flex;gap:8px;margin-top:10px}
-.actions button{flex:1}
-.add-machine{font-weight:700}
-.muted{color:#666;font-size:12px;line-height:1.4}
-.empty{padding:8px 0;color:#666}
-.error{color:#a00000;font-size:12px;margin-top:6px}
-.hidden{display:none!important}
-.badge{font-size:12px;color:#555;margin-bottom:8px}
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 12px;
+    font-family: Arial, sans-serif;
+    color: #222;
+    background: #fff;
+    font-size: 14px;
+  }
+  h3 { margin: 0 0 12px; font-size: 18px; }
+  button, select {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    padding: 10px;
+    border: 1px solid #888;
+    border-radius: 8px;
+    background: #fff;
+  }
+  button { font-weight: bold; cursor: pointer; }
+  .machine {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    background: #fff;
+  }
+  label {
+    display: block;
+    font-weight: bold;
+    margin: 0 0 6px;
+  }
 </style>
 </head>
 <body>
 
-<h3>MACCHINARI E RICAMBI UTILIZZATI</h3>
-<div id="status" class="muted">In attesa del cliente selezionato nel modulo.</div>
+<h3>MACCHINARI — TEST</h3>
+
+<button type="button" id="addMachine">+ Aggiungi macchinario</button>
+
 <div id="machines"></div>
 
-<button type="button" class="add-machine primary" id="addMachine">+ Aggiungi macchinario</button>
-<div class="muted" style="margin-top:8px">
-Ogni macchinario può avere uno o più ricambi associati.
-</div>
-
 <script>
-const CLIENT_FIELD_NAME = 'scriviUna26';
-
 const SAMPLE_MACHINES = [
-  {id:'1', clientId:'2', brand:'FrigoTech', desc:'Unità di refrigerazione', model:'FT-220', serial:'FT220-1932', note:'Installata nel reparto confezionamento'},
-  {id:'2', clientId:'1', brand:'Komatsu', desc:'Compressore industriale', model:'KX-400', serial:'KX400-8841', note:'Revisione annuale a marzo'},
-  {id:'3', clientId:'1', brand:'Orved', desc:'Confezionatrice sottovuoto', model:'VM 18', serial:'ORV-VM18-001', note:''},
-  {id:'4', clientId:'1', brand:'Orved', desc:'Confezionatrice sottovuoto', model:'C 33', serial:'ORV-C33-002', note:''},
-  {id:'5', clientId:'3', brand:'Orved', desc:'Termosaldatrice', model:'TS 35', serial:'ORV-TS35-003', note:''}
+  {id:'2', text:'Komatsu — Compressore industriale — KX-400 — KX400-8841'},
+  {id:'3', text:'Orved — Confezionatrice sottovuoto — VM 18 — ORV-VM18-001'},
+  {id:'4', text:'Orved — Confezionatrice sottovuoto — C 33 — ORV-C33-002'}
 ];
 
-const UNITS = ['pezzi','cm','litri','Kg'];
-const RICAMBI_API = 'https://script.google.com/macros/s/AKfycby_QAET2KqQB_Rq_VFC0SOHIVenJCcunLWPFVgz6CipZXTad1c63I0--O3ZY7Rh3Fsziw/exec';
+const machines = document.getElementById('machines');
+const addButton = document.getElementById('addMachine');
 
-let clientId = '';
-let machineBlocks = [];
+let counter = 0;
 
-function esc(v){
-  return String(v ?? '').replace(/[&<>"']/g,c=>({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-  }[c]));
-}
+addButton.addEventListener('click', function () {
+  counter++;
 
-function resizeWidget(){
-  /* Temporaneamente nessun resize dinamico:
-     evita che Jotform ricrei l'iframe durante le interazioni. */
-}
-function scheduleResize(){}
+  const section = document.createElement('div');
+  section.className = 'machine';
 
-function filteredMachines(){
-  return SAMPLE_MACHINES.filter(m => String(m.clientId) === String(clientId));
-}
+  const label = document.createElement('label');
+  label.textContent = 'Macchinario ' + counter;
 
-function newBlock(){
-  return {
-    id: Date.now()+Math.random(),
-    machineId:'',
-    machineQuery:'',
-    machineResults:[],
-    parts:[]
-  };
-}
+  const select = document.createElement('select');
 
-function newPart(){
-  return {
-    id: Date.now()+Math.random(),
-    query:'',
-    results:[],
-    selected:null,
-    unit:'pezzi',
-    qty:''
-  };
-}
+  const empty = document.createElement('option');
+  empty.value = '';
+  empty.textContent = '-- Seleziona un macchinario --';
+  select.appendChild(empty);
 
-function getOutput(){
-  return {
-    ID_Cliente: clientId,
-    macchinari: machineBlocks
-      .filter(b => b.machineId)
-      .map(b => {
-        const m = SAMPLE_MACHINES.find(x => String(x.id) === String(b.machineId));
-        return {
-          ID_Macchinario: m ? m.id : b.machineId,
-          Marca: m ? m.brand : '',
-          Descrizione: m ? m.desc : '',
-          Modello: m ? m.model : '',
-          Matricola: m ? m.serial : '',
-          Note: m ? m.note : '',
-          ricambi: b.parts.filter(p => p.selected).map(p => ({
-            COD_RICAMBIO: p.selected.code || '',
-            Ricambi: p.selected.description || '',
-            unita_misura: p.unit,
-            quantita_utilizzata: p.qty === '' ? '' : Number(p.qty)
-          }))
-        };
-      })
-  };
-}
-
-function sendData(){
-  if(window.JFCustomWidget){
-    JFCustomWidget.sendData({value:JSON.stringify(getOutput())});
-  }
-}
-
-function extractBridgeValue(data){
-  if(data == null) return '';
-
-  if(typeof data === 'string' || typeof data === 'number'){
-    return String(data).trim();
-  }
-
-  if(Array.isArray(data)){
-    for(const item of data){
-      const v=extractBridgeValue(item);
-      if(v) return v;
-    }
-    return '';
-  }
-
-  if(typeof data === 'object'){
-    const preferred=[
-      CLIENT_FIELD_NAME,
-      '26',
-      'input_26',
-      'value',
-      'answer',
-      'answerValue'
-    ];
-
-    for(const key of preferred){
-      if(Object.prototype.hasOwnProperty.call(data,key)){
-        const v=extractBridgeValue(data[key]);
-        if(v) return v;
-      }
-    }
-
-    for(const key of Object.keys(data)){
-      const v=extractBridgeValue(data[key]);
-      if(v) return v;
-    }
-  }
-
-  return '';
-}
-
-function readBridge(){
-  if(!window.JFCustomWidget) return;
-
-  if(JFCustomWidget.getFieldsValueById){
-    try{
-      JFCustomWidget.getFieldsValueById(['26'], data=>{
-        const v=extractBridgeValue(data);
-        if(v) applyClientValue(v);
-      });
-    }catch(e){}
-  }
-
-  if(JFCustomWidget.getFieldsValueByName){
-    try{
-      JFCustomWidget.getFieldsValueByName([CLIENT_FIELD_NAME], data=>{
-        const v=extractBridgeValue(data);
-        if(v) applyClientValue(v);
-      });
-    }catch(e){}
-  }
-}
-
-function applyClientValue(value){
-  const v = String(value ?? '').trim();
-  if(v === clientId) return;
-
-  clientId = v;
-  machineBlocks = [];
-  render();
-
-  if(clientId){
-    const available = filteredMachines().length;
-    document.getElementById('status').textContent =
-      available
-      ? 'Cliente selezionato. Aggiungi uno o più macchinari.'
-      : 'Cliente selezionato, ma non risultano macchinari associati.';
-  }else{
-    document.getElementById('status').textContent =
-      'In attesa del cliente selezionato nel modulo.';
-  }
-
-}
-
-function machineText(m){
-  return `${m.brand} — ${m.desc} — ${m.model} — ${m.serial}`;
-}
-
-function render(){
-  const root=document.getElementById('machines');
-
-  if(!clientId){
-    root.innerHTML='';
-    document.getElementById('addMachine').classList.add('hidden');
-    return;
-  }
-
-  document.getElementById('addMachine').classList.remove('hidden');
-
-  root.innerHTML = machineBlocks.map((block,index)=>`
-    <section class="section" data-block="${index}">
-      <div class="machine-title">Macchinario ${index+1}</div>
-
-      ${block.machineId ? `
-        <div class="selected-machine">
-          ${(() => {
-            const m=SAMPLE_MACHINES.find(x=>String(x.id)===String(block.machineId));
-            return m ? `<strong>${esc(m.brand)} — ${esc(m.desc)}</strong><br>
-              Modello: ${esc(m.model)}<br>
-              Matricola: ${esc(m.serial)}` : '';
-          })()}
-        </div>
-
-        <div class="row">
-          <div class="badge">RICAMBI UTILIZZATI</div>
-          <div class="parts"></div>
-          <button type="button" class="add-part">+ Aggiungi ricambio</button>
-        </div>
-
-        <button type="button" class="danger remove-machine">Rimuovi macchinario</button>
-      ` : `
-        <label for="machineSelect_${index}">Seleziona macchinario</label>
-        <select class="machine-select" id="machineSelect_${index}">
-          <option value="">-- Seleziona un macchinario --</option>
-          ${filteredMachines().map(m=>`
-            <option value="${esc(m.id)}">
-              ${esc(m.brand)} — ${esc(m.desc)} — ${esc(m.model)} — ${esc(m.serial)}
-            </option>
-          `).join('')}
-        </select>
-        ${filteredMachines().length===0 ? '<div class="empty">Nessun macchinario associato al cliente selezionato.</div>' : ''}
-        <button type="button" class="danger remove-machine">Rimuovi macchinario</button>
-      `}
-    </section>
-  `).join('');
-
-  root.querySelectorAll('[data-block]').forEach(section=>{
-    const index=Number(section.dataset.block);
-    const block=machineBlocks[index];
-
-    const select=section.querySelector('.machine-select');
-    if(select){
-      select.addEventListener('change',e=>{
-        block.machineId=e.target.value;
-        render();
-      });
-    }
-
-    const addPart=section.querySelector('.add-part');
-    if(addPart){
-      addPart.addEventListener('click',()=>{
-        block.parts.push(newPart());
-        render();
-      });
-      renderParts(section,block);
-    }
-
-    const remove=section.querySelector('.remove-machine');
-    if(remove){
-      remove.addEventListener('click',()=>{
-        machineBlocks.splice(index,1);
-        render();
-      });
-    }
+  SAMPLE_MACHINES.forEach(function (machine) {
+    const option = document.createElement('option');
+    option.value = machine.id;
+    option.textContent = machine.text;
+    select.appendChild(option);
   });
-}
 
-function renderParts(section,block){
-  const root=section.querySelector('.parts');
-  if(!root) return;
-
-  root.innerHTML=block.parts.map((part,index)=>`
-    <div class="row" data-part="${index}">
-      ${part.selected ? `
-        <div class="selected-machine">
-          <strong>${esc(part.selected.description)}</strong>
-          <div class="muted">Codice: ${esc(part.selected.code)}</div>
-        </div>
-        <div class="controls">
-          <div>
-            <small>Unità di misura</small>
-            <select class="unit">
-              ${UNITS.map(u=>`<option value="${u}" ${part.unit===u?'selected':''}>${u}</option>`).join('')}
-            </select>
-          </div>
-          <div>
-            <small>Quantità utilizzata</small>
-            <input class="qty" type="number" min="0" step="any" inputmode="decimal" value="${esc(part.qty)}">
-          </div>
-        </div>
-        <button type="button" class="danger remove-part">Rimuovi ricambio</button>
-      ` : `
-        <label>Ricambio</label>
-        <input class="part-search" type="search" autocomplete="off"
-          placeholder="Cerca codice o descrizione..."
-          value="${esc(part.query)}">
-        <div class="result-list"></div>
-        <button type="button" class="danger remove-part">Rimuovi ricambio</button>
-      `}
-    </div>
-  `).join('');
-
-  root.querySelectorAll('[data-part]').forEach(row=>{
-    const index=Number(row.dataset.part);
-    const part=block.parts[index];
-
-    const search=row.querySelector('.part-search');
-    if(search){
-      let timer;
-      search.addEventListener('input',e=>{
-        clearTimeout(timer);
-        part.query=e.target.value;
-        timer=setTimeout(()=>searchParts(part,row),180);
-      });
-      searchParts(part,row);
-    }
-
-    const unit=row.querySelector('.unit');
-    if(unit) unit.addEventListener('change',e=>{
-      part.unit=e.target.value;
-    });
-
-    const qty=row.querySelector('.qty');
-    if(qty) qty.addEventListener('input',e=>{
-      part.qty=e.target.value;
-    });
-
-    const remove=row.querySelector('.remove-part');
-    remove.addEventListener('click',()=>{
-      block.parts.splice(index,1);
-      render();
-    });
-  });
-}
-
-async function searchParts(part,row){
-  const box=row.querySelector('.result-list');
-  if(!box) return;
-
-  const q=part.query.trim();
-  if(!q){
-    box.innerHTML='';
-    return;
-  }
-
-  box.innerHTML='<div class="empty">Ricerca...</div>';
-
-  try{
-    const response=await fetch(RICAMBI_API+'?q='+encodeURIComponent(q));
-    const data=await response.json();
-    const results=data && data.ok ? (data.results||[]) : [];
-
-    box.innerHTML=results.map((item,i)=>`
-      <div class="result" data-result="${i}">
-        <strong>${esc(item.description||'')}</strong><br>
-        <span class="muted">${esc(item.code||'')}</span>
-      </div>
-    `).join('') || '<div class="empty">Nessun ricambio trovato.</div>';
-
-    box.querySelectorAll('.result').forEach((el,i)=>{
-      el.addEventListener('click',()=>{
-        const item=results[i];
-        part.selected={
-          code:item.code||'',
-          description:item.description||'',
-          unit:item.unit||''
-        };
-        part.query='';
-        if(UNITS.includes(item.unit)) part.unit=item.unit;
-        render();
-      });
-    });
-  }catch(e){
-    box.innerHTML='<div class="error">Impossibile consultare l\'anagrafica ricambi.</div>';
-  }
-
-  scheduleResize();
-}
-
-document.getElementById('addMachine').addEventListener('click',()=>{
-  if(!clientId) return;
-  machineBlocks.push(newBlock());
-  render();
+  section.appendChild(label);
+  section.appendChild(select);
+  machines.appendChild(section);
 });
-
-if(window.JFCustomWidget){
-  JFCustomWidget.subscribe('ready',function(){
-    readBridge();
-
-    try{
-      JFCustomWidget.listenFromField(CLIENT_FIELD_NAME,'change',function(value){
-        applyClientValue(value);
-      });
-    }catch(e){}
-
-    try{
-      JFCustomWidget.listenFromField('input_26','change',function(value){
-        applyClientValue(value);
-      });
-    }catch(e){}
-
-    sendData();
-    scheduleResize();
-  });
-
-  JFCustomWidget.subscribe('submit',function(){
-    const output=JSON.stringify(getOutput());
-    JFCustomWidget.sendData({value:output});
-    JFCustomWidget.sendSubmit({valid:true,value:output});
-  });
-}
-
-setInterval(readBridge,700);
-render();
-
-if(window.ResizeObserver){
-  new ResizeObserver(scheduleResize).observe(document.body);
-}
 </script>
+
 </body>
 </html>
