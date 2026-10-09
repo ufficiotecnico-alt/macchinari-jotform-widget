@@ -4,7 +4,7 @@
 <script src="https://js.jotform.com/JotFormCustomWidget.min.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Macchinari V4.7</title>
+<title>Macchinari V4.9 Database</title>
 <style>
 *{box-sizing:border-box}
 html,body{width:100%;min-width:0}
@@ -128,24 +128,7 @@ h1{flex:0 0 auto}
 
 <script>
 (function(){
- const ALL_MACHINES=[
-  {id:'1',clientId:'2',label:'FrigoTech — Unità di refrigerazione — FT-220'},
-  {id:'2',clientId:'1',label:'Komatsu — Compressore industriale — KX-400'},
-  {id:'3',clientId:'1',label:'Orved — Confezionatrice sottovuoto — VM 18'},
-  {id:'4',clientId:'1',label:'Orved — Confezionatrice sottovuoto — C 33'},
-  {id:'5',clientId:'3',label:'Orved — Termosaldatrice — TS 35'}
- ];
-
- // Per questo test i ricambi sono locali: introduciamo la struttura gerarchica
- // senza ancora dipendere dal backend esterno.
- const RICAMBI=[
-  {code:'ABC123',name:'Guarnizione coperchio'},
-  {code:'DEF456',name:'Resistenza saldante'},
-  {code:'GHI789',name:'Nastro teflon'},
-  {code:'LMN012',name:'O-ring'},
-  {code:'PRS345',name:'Sensore temperatura'},
-  {code:'XYZ678',name:'Olio lubrificante'}
- ];
+ const API_URL='https://script.google.com/macros/s/AKfycbyxdCMuqQ-jH7WrS1fvGLTEYeZ3VgZIqaUQc4Bqtm-te-smG18989Zv9WrnRwllq9V8/exec';
  const UNITS=['pezzi','cm','litri','Kg'];
 
  let counter=0,availableMachines=[], bridgeId='';
@@ -175,13 +158,35 @@ h1{flex:0 0 auto}
    return '';
  }
 
- function renderForClient(id){
+ async function renderForClient(id){
    bridgeId=id||'';
-   availableMachines=ALL_MACHINES.filter(m=>m.clientId===id);
+   availableMachines=[];
    $('machines').innerHTML='';
    counter=0;
-   $('emptyStatus').style.display=availableMachines.length?'none':'block';
-   $('addMachine').disabled=!availableMachines.length;
+   $('addMachine').disabled=true;
+   $('emptyStatus').textContent=id?'Caricamento macchinari…':'Seleziona prima un cliente.';
+   $('emptyStatus').style.display='block';
+   if(!id)return;
+   try{
+     const response=await fetch(API_URL+'?action=macchinari&clientId='+encodeURIComponent(id));
+     if(!response.ok)throw new Error('HTTP '+response.status);
+     const data=await response.json();
+     if(!data||data.ok!==true||!Array.isArray(data.results))throw new Error((data&&data.error)||'Risposta non valida');
+     availableMachines=data.results.map(m=>{
+       const id=String(m.ID_Macchinario||'').trim();
+       const brand=String(m.Marca||'').trim();
+       const desc=String(m.Descrizione||'').trim();
+       const model=String(m.Modello||'').trim();
+       const serial=String(m.Matricola||'').trim();
+       return {id,label:[brand,desc,model,serial].filter(Boolean).join(' — '),raw:m};
+     }).filter(m=>m.id);
+     $('emptyStatus').textContent=availableMachines.length?'':'Nessun macchinario disponibile per questo cliente.';
+     $('emptyStatus').style.display=availableMachines.length?'none':'block';
+     $('addMachine').disabled=!availableMachines.length;
+   }catch(err){
+     $('emptyStatus').textContent='Errore nel caricamento dei macchinari: '+String(err.message||err);
+     $('emptyStatus').style.display='block';
+   }
  }
 
  function createSpareRow(container){
@@ -222,27 +227,51 @@ h1{flex:0 0 auto}
 
    let selectedPart=null;
 
-   function showResults(){
-     const q=search.value.trim().toLowerCase();
+   let searchTimer=null, requestSerial=0;
+   async function showResults(){
+     const q=search.value.trim(), serial=++requestSerial;
      results.innerHTML='';
-     const matches=RICAMBI.filter(r=>
-       !q || r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q)
-     );
-     matches.slice(0,20).forEach(r=>{
-       const opt=document.createElement('div');
-       opt.className='spare-option';
-       opt.textContent=r.code+' — '+r.name;
-       opt.addEventListener('click',()=>{
-         selectedPart=r;
-         search.value=r.code+' — '+r.name;
-         results.style.display='none';
+     if(!q){results.style.display='none';return;}
+     const loading=document.createElement('div');
+     loading.className='spare-option'; loading.textContent='Ricerca in corso…';
+     results.appendChild(loading); results.style.display='block';
+     try{
+       const response=await fetch(API_URL+'?action=ricambi&q='+encodeURIComponent(q));
+       if(!response.ok)throw new Error('HTTP '+response.status);
+       const data=await response.json();
+       if(serial!==requestSerial)return;
+       if(!data||data.ok!==true||!Array.isArray(data.results))throw new Error((data&&data.error)||'Risposta non valida');
+       results.innerHTML='';
+       const matches=data.results.slice(0,20).map(r=>({
+         id:String(r.ID_Ricambio||'').trim(),code:String(r.Codice||'').trim(),
+         name:String(r.Descrizione||'').trim(),brand:String(r.Marca||'').trim()
+       }));
+       matches.forEach(r=>{
+         const opt=document.createElement('div'); opt.className='spare-option';
+         opt.textContent=r.code+' — '+r.name+(r.brand?' ('+r.brand+')':'');
+         opt.addEventListener('click',()=>{
+           selectedPart=r; row._selectedPart=r;
+           search.value=r.code+' — '+r.name;
+           results.style.display='none';
+         });
+         results.appendChild(opt);
        });
-       results.appendChild(opt);
-     });
-     results.style.display=matches.length?'block':'none';
+       if(!matches.length){
+         const empty=document.createElement('div'); empty.className='spare-option';
+         empty.textContent='Nessun ricambio trovato. Puoi inserire una descrizione manuale.';
+         results.appendChild(empty);
+       }
+     }catch(err){
+       if(serial!==requestSerial)return;
+       results.innerHTML='';
+       const error=document.createElement('div'); error.className='spare-option';
+       error.textContent='Errore nella ricerca: '+String(err.message||err);
+       results.appendChild(error);
+     }
+     results.style.display='block';
    }
 
-   search.addEventListener('focus',showResults);
+   search.addEventListener('focus',()=>{if(search.value.trim())showResults();});
    search.addEventListener('input',()=>{
      selectedPart=null;
      showResults();
@@ -315,7 +344,28 @@ h1{flex:0 0 auto}
    JFCustomWidget.getFieldsValueByName(['scriviUna26'],function(data){process(data)});
  }
 
+
  $('addMachine').addEventListener('click',addMachine);
+
+ function collectWidgetData(){
+   const machines=[];
+   document.querySelectorAll('#machines .machine').forEach(block=>{
+     const sel=block.querySelector('.machine-select');
+     const machine=availableMachines.find(m=>m.id===sel.value);
+     if(!machine||!sel.value)return;
+     const parts=[];
+     block.querySelectorAll('.spare-row').forEach(row=>{
+       const input=row.querySelector('.spare-search'), unit=row.querySelector('.spare-unit'), qty=row.querySelector('.qty');
+       if(!input||!input.value.trim())return;
+       const part=row._selectedPart||null;
+       parts.push({ID_Ricambio:part?part.id:'',Marca:part?part.brand:'',Codice:part?part.code:'',Descrizione:part?part.name:input.value.trim(),UnitaMisura:unit?unit.value:'pezzi',Quantita:qty?qty.value:'1',Origine:part?'ANAGRAFICA':'INSERIMENTO_MANUALE'});
+     });
+     machines.push({ID_Macchinario:machine.id,Marca:machine.raw.Marca||'',Descrizione:machine.raw.Descrizione||'',Modello:machine.raw.Modello||'',Matricola:String(machine.raw.Matricola||'').trim(),Ricambi:parts});
+   });
+   return {ID_Cliente:bridgeId,Macchinari:machines};
+ }
+ JFCustomWidget.subscribe('submit',function(){JFCustomWidget.sendSubmit({valid:true,value:JSON.stringify(collectWidgetData())});});
+
 
  JFCustomWidget.subscribe('ready',function(){
    readByName();
