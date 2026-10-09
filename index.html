@@ -189,7 +189,7 @@ h1{flex:0 0 auto}
    }
  }
 
- function createSpareRow(container){
+ function createSpareRow(container, getMachineBrand){
    const row=document.createElement('div');
    row.className='spare-row';
 
@@ -236,7 +236,7 @@ h1{flex:0 0 auto}
      loading.className='spare-option'; loading.textContent='Ricerca in corso…';
      results.appendChild(loading); results.style.display='block';
      try{
-       const response=await fetch(API_URL+'?action=ricambi&q='+encodeURIComponent(q));
+       const response=await fetch(API_URL+'?action=ricambi&q='+encodeURIComponent(q)+'&marca='+encodeURIComponent(brand));
        if(!response.ok)throw new Error('HTTP '+response.status);
        const data=await response.json();
        if(serial!==requestSerial)return;
@@ -325,7 +325,10 @@ h1{flex:0 0 auto}
    addSpare.type='button';
    addSpare.className='add-spare';
    addSpare.textContent='+ Aggiungi ricambio';
-   addSpare.addEventListener('click',()=>createSpareRow(spareList));
+   addSpare.addEventListener('click',()=>createSpareRow(spareList,()=>{
+     const selected=availableMachines.find(m=>m.id===s.value);
+     return selected ? String(selected.raw.Marca||'').trim() : '';
+   }));
 
    removeMachine.addEventListener('click',()=>b.remove());
 
