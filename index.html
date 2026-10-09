@@ -4,7 +4,7 @@
 <script src="https://js.jotform.com/JotFormCustomWidget.min.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Macchinari V4.9 Database</title>
+<title>Macchinari V4.10 Filtro Marca - corretta</title>
 <style>
 *{box-sizing:border-box}
 html,body{width:100%;min-width:0}
@@ -236,7 +236,8 @@ h1{flex:0 0 auto}
      loading.className='spare-option'; loading.textContent='Ricerca in corso…';
      results.appendChild(loading); results.style.display='block';
      try{
-       const response=await fetch(API_URL+'?action=ricambi&q='+encodeURIComponent(q)+'&marca='+encodeURIComponent(brand));
+       const brand = typeof getMachineBrand === 'function' ? String(getMachineBrand() || '').trim() : '';
+      const response=await fetch(API_URL+'?action=ricambi&q='+encodeURIComponent(q)+'&marca='+encodeURIComponent(brand));
        if(!response.ok)throw new Error('HTTP '+response.status);
        const data=await response.json();
        if(serial!==requestSerial)return;
