@@ -175,6 +175,9 @@ h1{flex:0 0 auto}
    $('machines').innerHTML='';
    counter=0;
    $('addMachine').disabled=true;
+   $('registerMachineToggle').disabled=!id;
+   $('registerMachineForm').style.display='none';
+   $('registerMachineStatus').textContent='';
    $('emptyStatus').textContent=id?'Caricamento macchinari…':'Seleziona prima un cliente.';
    $('emptyStatus').style.display='block';
    if(!id)return;
