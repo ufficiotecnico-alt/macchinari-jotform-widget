@@ -180,7 +180,7 @@ h1{flex:0 0 auto}
      for(const k of ['value','answer','answerValue']){
        if(v[k]!==undefined&&v[k]!==null){const r=extract(v[k]);if(r)return r}
      }
-     for(const k of ['scriviUna26','input_26','26','data_intervento_ponte','ID Data intervento ponte']){
+     for(const k of ['scriviUna26','input_26','26','data_intervento_ponte','ID Data intervento ponte','input_28','28']){
        if(v[k]!==undefined){const r=extract(v[k]);if(r)return r}
      }
      if(v.name==='scriviUna26'&&v.val!==undefined)return extract(v.val);
@@ -230,7 +230,13 @@ h1{flex:0 0 auto}
  }
  function readInterventionDate(){
    if(typeof JFCustomWidget.getFieldsValueByName!=='function')return;
-   JFCustomWidget.getFieldsValueByName(['data_intervento_ponte'],function(data){processInterventionDate(data)});
+   JFCustomWidget.getFieldsValueByName(['data_intervento_ponte'],function(data){
+     let value=extractDate(data);
+     if(!value && data && typeof data==='object'){
+       value=extractDate(data.data_intervento_ponte || data.input_28 || data['28'] || data['ID Data intervento ponte']);
+     }
+     processInterventionDate(value);
+   });
  }
 
  async function renderForClient(id){
@@ -524,6 +530,7 @@ h1{flex:0 0 auto}
  function readByName(){
    if(typeof JFCustomWidget.getFieldsValueByName!=='function')return;
    JFCustomWidget.getFieldsValueByName(['scriviUna26'],function(data){process(data)});
+   readInterventionDate();
  }
 
 
@@ -593,10 +600,9 @@ h1{flex:0 0 auto}
 
  JFCustomWidget.subscribe('ready',function(){
    readByName();
-   readInterventionDate();
    if(typeof JFCustomWidget.listenFromField==='function'){
-     JFCustomWidget.listenFromField('data_intervento_ponte','change',function(value){processInterventionDate(value)});
-     JFCustomWidget.listenFromField('data_intervento_ponte','keyup',function(value){processInterventionDate(value)});
+     JFCustomWidget.listenFromField('input_28','change',function(value){processInterventionDate(value)});
+     JFCustomWidget.listenFromField('input_28','keyup',function(value){processInterventionDate(value)});
      JFCustomWidget.listenFromField('input_26','change',function(value){process(value)});
      JFCustomWidget.listenFromField('input_26','keyup',function(value){process(value)});
    }
