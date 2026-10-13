@@ -120,6 +120,10 @@ h1{flex:0 0 auto}
 .maintenance-box{margin:2px 0 13px;padding:11px;border:1px solid #b9c8d8;border-radius:10px;background:#f5f8fb}
 .maintenance-heading{font-size:16px;font-weight:700;margin-bottom:8px}
 .maintenance-field{display:block;width:100%;margin:6px 0 3px;font-size:13px;font-weight:600}
+.maintenance-top-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:end}
+.maintenance-top-fields .maintenance-field{margin-top:0}
+.maintenance-next-date{display:block;width:100%;min-height:41px;padding:8px;border:1px solid #999;border-radius:7px;background:#fff;font:15px Arial,Helvetica,sans-serif;color:#222}
+@media(max-width:360px){.maintenance-top-fields{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:5px}.maintenance-next-date{font-size:13px;padding:6px}}
 .maintenance-box input,.maintenance-box textarea,.maintenance-box select{width:100%;min-height:41px;padding:8px;border:1px solid #999;border-radius:7px;background:#fff;font:15px Arial,Helvetica,sans-serif}
 .maintenance-box textarea{min-height:58px;resize:vertical}
 .maintenance-save{width:100%;margin-top:8px;padding:10px;border:1px solid #667788;border-radius:8px;background:#fff;font-size:15px;font-weight:700}
@@ -352,91 +356,106 @@ h1{flex:0 0 auto}
    }catch(err){status.textContent='Verifica non riuscita: '+String(err.message||err);}
  }
 
- function readInterventionDate(callback){
-   if(typeof JFCustomWidget.getFieldsValueByName!=='function'){
-     callback('','Non riesco a leggere la data dal modulo Jotform.'); return;
+ function parseInterventionDate(value){
+   if(value===null||value===undefined)return null;
+   if(typeof value==='object'){
+     for(const key of ['value','answer','answerValue','data']){
+       if(value[key]!==undefined){const parsed=parseInterventionDate(value[key]);if(parsed)return parsed;}
+     }
+     for(const key of ['month_27','day_27','year_27','month','day','year']){
+       if(value[key]!==undefined){}
+     }
+     return null;
    }
-   JFCustomWidget.getFieldsValueByName(['data'],function(data){
-     let raw='';
-     if(data && typeof data==='object'){
-       raw=extract(data.data);
-       if(!raw) raw=extract(data);
-     } else raw=extract(data);
-     raw=String(raw||'').trim();
-     let y,m,d, match;
-     if((match=raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))){y=+match[1];m=+match[2];d=+match[3];}
-     else if((match=raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))){m=+match[1];d=+match[2];y=+match[3];}
-     else if((match=raw.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/))){d=+match[1];m=+match[2];y=+match[3];}
-     if(!y||!m||!d){callback('','La data intervento non è disponibile. Controlla che il campo Data intervento sia compilato.');return;}
-     const check=new Date(Date.UTC(y,m-1,d));
-     if(check.getUTCFullYear()!==y||check.getUTCMonth()!==m-1||check.getUTCDate()!==d){callback('','La data intervento letta dal modulo non è valida: '+raw);return;}
-     callback(y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'),'');
+   const text=String(value).trim();
+   if(!text)return null;
+   let m=text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+   if(m){
+     // Il modulo mostra la data come MM/DD/YYYY; accetta anche DD/MM/YYYY.
+     const a=Number(m[1]), b=Number(m[2]), y=Number(m[3]);
+     let month, day;
+     if(a>12){day=a;month=b;} else {month=a;day=b;}
+     const d=new Date(y,month-1,day,12,0,0);
+     return d.getFullYear()===y&&d.getMonth()===month-1&&d.getDate()===day?d:null;
+   }
+   m=text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+   if(m){const y=+m[1],mo=+m[2],day=+m[3],d=new Date(y,mo-1,day,12,0,0);return d.getFullYear()===y&&d.getMonth()===mo-1&&d.getDate()===day?d:null;}
+   return null;
+ }
+ function addMonthsClamped(date, months){
+   const first=new Date(date.getFullYear(),date.getMonth()+months,1,12,0,0);
+   const lastDay=new Date(first.getFullYear(),first.getMonth()+1,0,12,0,0).getDate();
+   return new Date(first.getFullYear(),first.getMonth(),Math.min(date.getDate(),lastDay),12,0,0);
+ }
+ function formatDateDDMMYYYY(date){
+   return date ? String(date.getDate()).padStart(2,'0')+'/'+String(date.getMonth()+1).padStart(2,'0')+'/'+date.getFullYear() : '';
+ }
+ function getInterventionDate(){
+   if(typeof JFCustomWidget.getFieldsValueByName!=='function')return null;
+   return new Promise(resolve=>{
+     try{JFCustomWidget.getFieldsValueByName(['data'],function(data){
+       let raw='';
+       if(data&&typeof data==='object'){
+         raw=data.data!==undefined?data.data:(data.value!==undefined?data.value:data);
+       } else raw=data;
+       resolve(parseInterventionDate(raw));
+     });}catch(e){resolve(null);}
    });
  }
-
- function calculateMaintenanceDate(isoDate,period){
-   const parts=isoDate.split('-').map(Number), y=parts[0], m=parts[1], d=parts[2];
-   const months=period==='3 mesi'?3:period==='6 mesi'?6:period==='1 anno'?12:0;
-   if(!months)return '';
-   const targetMonth=m-1+months, targetYear=y+Math.floor(targetMonth/12), monthIndex=targetMonth%12;
-   const lastDay=new Date(Date.UTC(targetYear,monthIndex+1,0)).getUTCDate();
-   return targetYear+'-'+String(monthIndex+1).padStart(2,'0')+'-'+String(Math.min(d,lastDay)).padStart(2,'0');
- }
-
  function createMaintenanceBox(machineSelect){
    const box=document.createElement('section'); box.className='maintenance-box';
    const heading=document.createElement('div'); heading.className='maintenance-heading'; heading.textContent='MANUTENZIONE PROGRAMMATA';
    const existing=document.createElement('div'); existing.className='maintenance-existing'; existing.style.display='none';
+   const top=document.createElement('div'); top.className='maintenance-top-fields';
+   const periodicityWrap=document.createElement('div');
    const periodicityLabel=document.createElement('label'); periodicityLabel.className='maintenance-field'; periodicityLabel.textContent='Periodicità';
    const periodicity=document.createElement('select'); periodicity.className='maintenance-periodicity';
-   [['','-- Seleziona periodicità --'],['3 mesi','3 mesi'],['6 mesi','6 mesi'],['1 anno','1 anno']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;periodicity.appendChild(o)});
-   const dateInfo=document.createElement('div'); dateInfo.className='maintenance-date-info'; dateInfo.textContent='Seleziona la periodicità: la data prevista sarà calcolata dalla data dell’intervento.';
+   [['','-- Seleziona --'],['3 mesi','3 mesi'],['6 mesi','6 mesi'],['1 anno','1 anno']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;periodicity.appendChild(o)});
+   const dateWrap=document.createElement('div');
+   const dateLabel=document.createElement('label'); dateLabel.className='maintenance-field'; dateLabel.textContent='Prossima manutenzione';
+   const nextDate=document.createElement('output'); nextDate.className='maintenance-next-date'; nextDate.textContent='—'; nextDate.setAttribute('aria-live','polite');
+   periodicityWrap.append(periodicityLabel,periodicity); dateWrap.append(dateLabel,nextDate); top.append(periodicityWrap,dateWrap);
    const notesLabel=document.createElement('label'); notesLabel.className='maintenance-field'; notesLabel.textContent='Note';
    const notes=document.createElement('textarea'); notes.className='maintenance-notes'; notes.maxLength=1000; notes.placeholder='Note per il tecnico (facoltative)';
    const save=document.createElement('button'); save.type='button'; save.className='maintenance-save'; save.textContent='Salva manutenzione programmata';
    const status=document.createElement('div'); status.className='maintenance-status'; status.setAttribute('role','status'); status.textContent='Seleziona un macchinario per verificare la manutenzione.';
-   let calculatedDate='';
-   function refreshCalculatedDate(){
-     calculatedDate='';
-     if(!periodicity.value){dateInfo.textContent='Seleziona la periodicità: la data prevista sarà calcolata dalla data dell’intervento.';return;}
-     dateInfo.textContent='Lettura della data intervento…';
-     readInterventionDate((iso,error)=>{
-       if(error){dateInfo.textContent=error;return;}
-       calculatedDate=calculateMaintenanceDate(iso,periodicity.value);
-       dateInfo.textContent='Data intervento: '+italianDate(iso)+' · Prossima manutenzione prevista: '+italianDate(calculatedDate);
-     });
+   let interventionDate=null;
+   async function updateNextDate(){
+     interventionDate=await getInterventionDate();
+     const months={'3 mesi':3,'6 mesi':6,'1 anno':12}[periodicity.value];
+     if(!interventionDate){nextDate.textContent='Data intervento non letta';return;}
+     nextDate.textContent=months?formatDateDDMMYYYY(addMonthsClamped(interventionDate,months)):'—';
    }
-   periodicity.addEventListener('change',refreshCalculatedDate);
+   periodicity.addEventListener('change',updateNextDate);
    save.addEventListener('click',async()=>{
      const machineId=machineSelect.value;
      if(!machineId){status.textContent='Seleziona prima un macchinario.';return;}
      if(!periodicity.value){status.textContent='Seleziona la periodicità.';periodicity.focus();return;}
-     save.disabled=true; status.textContent='Verifica della data intervento…';
-     readInterventionDate(async(iso,error)=>{
-       if(error){status.textContent=error;save.disabled=false;return;}
-       const planDate=calculateMaintenanceDate(iso,periodicity.value);
-       if(!planDate){status.textContent='Non è stato possibile calcolare la data prevista.';save.disabled=false;return;}
-       calculatedDate=planDate;
-       dateInfo.textContent='Data intervento: '+italianDate(iso)+' · Prossima manutenzione prevista: '+italianDate(planDate);
-       status.textContent='Salvataggio in corso…';
-       try{
-         const body=new URLSearchParams();
-         body.append('action','salvaconfigurazionemanutenzione');
-         body.append('ID_Macchinario',machineId);
-         body.append('Periodicita_Manutenzione',periodicity.value);
-         body.append('Data_Pianificazione',planDate);
-         body.append('Note_Manutenzione',notes.value.trim());
-         const response=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:body.toString()});
-         if(!response.ok)throw new Error('HTTP '+response.status);
-         const result=await response.json();
-         if(!result||result.ok!==true)throw new Error((result&&result.error)||'Il server non ha confermato il salvataggio.');
-         status.textContent='Manutenzione programmata salvata correttamente.';
-         await loadMachineMaintenance(machineId,box);
-       }catch(err){status.textContent='Salvataggio non riuscito: '+String(err.message||err);save.disabled=false;}
-     });
+     interventionDate=await getInterventionDate();
+     if(!interventionDate){status.textContent='Non riesco a leggere la Data intervento. Verifica che sia compilata prima di salvare.';return;}
+     const months={'3 mesi':3,'6 mesi':6,'1 anno':12}[periodicity.value];
+     const plannedDate=addMonthsClamped(interventionDate,months);
+     nextDate.textContent=formatDateDDMMYYYY(plannedDate);
+     save.disabled=true; status.textContent='Salvataggio in corso…';
+     try{
+       const body=new URLSearchParams();
+       body.append('action','salvaconfigurazionemanutenzione');
+       body.append('ID_Macchinario',machineId);
+       body.append('Periodicita_Manutenzione',periodicity.value);
+       // L'API usa la data dell'intervento come base e calcola la scadenza futura.
+       body.append('Data_Pianificazione',interventionDate.getFullYear()+'-'+String(interventionDate.getMonth()+1).padStart(2,'0')+'-'+String(interventionDate.getDate()).padStart(2,'0'));
+       body.append('Note_Manutenzione',notes.value.trim());
+       const response=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:body.toString()});
+       if(!response.ok)throw new Error('HTTP '+response.status);
+       const result=await response.json();
+       if(!result||result.ok!==true)throw new Error((result&&result.error)||'Il server non ha confermato il salvataggio.');
+       status.textContent='Manutenzione programmata salvata correttamente. Prossima data: '+formatDateDDMMYYYY(plannedDate)+'.';
+       await loadMachineMaintenance(machineId,box);
+     }catch(err){status.textContent='Salvataggio non riuscito: '+String(err.message||err);save.disabled=false;}
    });
    machineSelect.addEventListener('change',()=>loadMachineMaintenance(machineSelect.value,box));
-   box.append(heading,existing,periodicityLabel,periodicity,dateInfo,notesLabel,notes,save,status);
+   box.append(heading,existing,top,notesLabel,notes,save,status);
+   updateNextDate();
    return box;
  }
 
