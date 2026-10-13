@@ -115,6 +115,17 @@ h1{flex:0 0 auto}
 @media (max-width:430px){
   #contentArea{margin-top:7px}
 }
+
+/* Manutenzione programmata */
+.maintenance-box{margin:2px 0 13px;padding:11px;border:1px solid #b9c8d8;border-radius:10px;background:#f5f8fb}
+.maintenance-heading{font-size:16px;font-weight:700;margin-bottom:8px}
+.maintenance-field{display:block;width:100%;margin:6px 0 3px;font-size:13px;font-weight:600}
+.maintenance-box input,.maintenance-box textarea,.maintenance-box select{width:100%;min-height:41px;padding:8px;border:1px solid #999;border-radius:7px;background:#fff;font:15px Arial,Helvetica,sans-serif}
+.maintenance-box textarea{min-height:58px;resize:vertical}
+.maintenance-save{width:100%;margin-top:8px;padding:10px;border:1px solid #667788;border-radius:8px;background:#fff;font-size:15px;font-weight:700}
+.maintenance-status{margin-top:8px;font-size:13px;line-height:1.4;overflow-wrap:anywhere}
+.maintenance-existing{padding:8px;margin:6px 0;border-radius:7px;background:#e8f0e8;font-size:13px;line-height:1.45}
+
 </style>
 </head>
 <body>
@@ -302,6 +313,83 @@ h1{flex:0 0 auto}
    container.appendChild(row);
  }
 
+ function italianDate(value){
+   if(!value)return '—';
+   const s=String(value).trim();
+   const iso=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+   if(iso)return iso[3]+'-'+iso[2]+'-'+iso[1];
+   const it=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+   return it ? it[1].padStart(2,'0')+'-'+it[2].padStart(2,'0')+'-'+it[3] : s;
+ }
+
+ async function loadMachineMaintenance(machineId, box){
+   const status=box.querySelector('.maintenance-status');
+   const existing=box.querySelector('.maintenance-existing');
+   existing.style.display='none'; existing.textContent='';
+   status.textContent='Verifica manutenzione in corso…';
+   if(!machineId){status.textContent='Seleziona un macchinario per verificare la manutenzione.';return;}
+   try{
+     const response=await fetch(API_URL+'?action=verificamanutenzione&ID_Macchinario='+encodeURIComponent(machineId));
+     if(!response.ok)throw new Error('HTTP '+response.status);
+     const data=await response.json();
+     if(!data||data.ok!==true)throw new Error((data&&data.error)||'Risposta non valida');
+     const rows=Array.isArray(data.registrazioni)?data.registrazioni:[];
+     const scheduled=rows.filter(r=>String(r.Stato||'').toUpperCase()==='PROGRAMMATA');
+     if(scheduled.length){
+       const r=scheduled[0];
+       existing.innerHTML='';
+       const strong=document.createElement('strong'); strong.textContent='Manutenzione già programmata'; existing.appendChild(strong);
+       const details=document.createElement('div');
+       details.textContent='Periodicità: '+(r.Periodicita||'—')+' · Data pianificata: '+italianDate(r.Data_Pianificazione)+' · Scadenza: '+italianDate(r.Data_Scadenza)+' · Stato: '+(r.Stato||'—');
+       existing.appendChild(details); existing.style.display='block';
+       box.querySelector('.maintenance-save').disabled=true;
+       status.textContent='Per evitare duplicati, non è possibile registrare una seconda manutenzione programmata per questo macchinario.';
+     }else{
+       box.querySelector('.maintenance-save').disabled=false;
+       status.textContent=rows.length?'Non risultano manutenzioni attualmente programmate.':'Nessuna manutenzione registrata per questo macchinario.';
+     }
+   }catch(err){status.textContent='Verifica non riuscita: '+String(err.message||err);}
+ }
+
+ function createMaintenanceBox(machineSelect){
+   const box=document.createElement('section'); box.className='maintenance-box';
+   const heading=document.createElement('div'); heading.className='maintenance-heading'; heading.textContent='MANUTENZIONE PROGRAMMATA';
+   const existing=document.createElement('div'); existing.className='maintenance-existing'; existing.style.display='none';
+   const periodicityLabel=document.createElement('label'); periodicityLabel.className='maintenance-field'; periodicityLabel.textContent='Periodicità';
+   const periodicity=document.createElement('select'); periodicity.className='maintenance-periodicity';
+   [['','-- Seleziona periodicità --'],['3 mesi','3 mesi'],['6 mesi','6 mesi'],['1 anno','1 anno']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;periodicity.appendChild(o)});
+   const dateLabel=document.createElement('label'); dateLabel.className='maintenance-field'; dateLabel.textContent='Data pianificata';
+   const date=document.createElement('input'); date.type='date'; date.className='maintenance-date';
+   const notesLabel=document.createElement('label'); notesLabel.className='maintenance-field'; notesLabel.textContent='Note';
+   const notes=document.createElement('textarea'); notes.className='maintenance-notes'; notes.maxLength=1000; notes.placeholder='Note per il tecnico (facoltative)';
+   const save=document.createElement('button'); save.type='button'; save.className='maintenance-save'; save.textContent='Salva manutenzione programmata';
+   const status=document.createElement('div'); status.className='maintenance-status'; status.setAttribute('role','status'); status.textContent='Seleziona un macchinario per verificare la manutenzione.';
+   save.addEventListener('click',async()=>{
+     const machineId=machineSelect.value;
+     if(!machineId){status.textContent='Seleziona prima un macchinario.';return;}
+     if(!periodicity.value){status.textContent='Seleziona la periodicità.';periodicity.focus();return;}
+     if(!date.value){status.textContent='Indica la data pianificata.';date.focus();return;}
+     save.disabled=true; status.textContent='Salvataggio in corso…';
+     try{
+       const body=new URLSearchParams();
+       body.append('action','salvaconfigurazionemanutenzione');
+       body.append('ID_Macchinario',machineId);
+       body.append('Periodicita_Manutenzione',periodicity.value);
+       body.append('Data_Pianificazione',date.value);
+       body.append('Note_Manutenzione',notes.value.trim());
+       const response=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:body.toString()});
+       if(!response.ok)throw new Error('HTTP '+response.status);
+       const result=await response.json();
+       if(!result||result.ok!==true)throw new Error((result&&result.error)||'Il server non ha confermato il salvataggio.');
+       status.textContent='Manutenzione programmata salvata correttamente.';
+       await loadMachineMaintenance(machineId,box);
+     }catch(err){status.textContent='Salvataggio non riuscito: '+String(err.message||err);save.disabled=false;}
+   });
+   machineSelect.addEventListener('change',()=>loadMachineMaintenance(machineSelect.value,box));
+   box.append(heading,existing,periodicityLabel,periodicity,dateLabel,date,notesLabel,notes,save,status);
+   return box;
+ }
+
  function addMachine(){
    counter++;
    const b=document.createElement('div');
@@ -329,6 +417,8 @@ h1{flex:0 0 auto}
      o.value=m.id;o.textContent=m.label;s.appendChild(o);
    });
 
+   const maintenanceBox=createMaintenanceBox(s);
+
    const title=document.createElement('div');
    title.className='section-title';
    title.textContent='RICAMBI UTILIZZATI';
@@ -347,8 +437,9 @@ h1{flex:0 0 auto}
 
    removeMachine.addEventListener('click',()=>b.remove());
 
-   b.append(head,s,title,spareList,addSpare);
+   b.append(head,s,maintenanceBox,title,spareList,addSpare);
    $('machines').appendChild(b);
+   if(s.value)loadMachineMaintenance(s.value,maintenanceBox);
  }
 
  function process(data){
