@@ -4,7 +4,7 @@
 <script src="https://js.jotform.com/JotFormCustomWidget.min.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Macchinari V4.16 Layout e gestione manutenzioni</title>
+<title>Macchinari V4.17 Data manutenzione modificabile</title>
 <style>
 *{box-sizing:border-box}
 html,body{width:100%;min-width:0}
@@ -419,7 +419,10 @@ h1{flex:0 0 auto}
        existing.replaceChildren(strong,details); existing.style.display='block';
        box.querySelector('.maintenance-periodicity').value=r.Periodicita||'';
        box.querySelector('.maintenance-notes').value=r.Note||'';
-       updateMaintenanceDate(box);
+       const dateInput=box.querySelector('.maintenance-next-date');
+       const savedDate=toIsoDate(r.Data_Scadenza);
+       dateInput.value=savedDate; dateInput.dataset.iso=savedDate;
+       dateInput.readOnly=false;
        save.disabled=true; edit.disabled=false; cancel.disabled=false;
        status.textContent='Manutenzione programmata esistente. Puoi modificarla oppure annullarla.';
      }else{
@@ -428,15 +431,23 @@ h1{flex:0 0 auto}
    }catch(err){status.textContent='Verifica non riuscita: '+String(err.message||err);}
  }
 
+ function toIsoDate(value){
+   const s=String(value||'').trim();
+   let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+   if(m)return m[1]+'-'+m[2]+'-'+m[3];
+   m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+   if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+   return '';
+ }
  function updateMaintenanceDate(box){
    const periodicity=box.querySelector('.maintenance-periodicity');
    const output=box.querySelector('.maintenance-next-date');
+   if(box._scheduled){return;}
    const months={'3 mesi':3,'6 mesi':6,'1 anno':12}[periodicity.value]||0;
-   if(!interventionDate){output.value='Data intervento non letta';output.dataset.iso='';return;}
+   if(!interventionDate){output.value='';output.dataset.iso='';return;}
    if(!months){output.value='';output.dataset.iso='';return;}
    const next=addMonthsIso(interventionDate,months);
-   output.value=formatIsoIt(next);
-   output.dataset.iso=next;
+   output.value=next; output.dataset.iso=next;
  }
 
  function createMaintenanceBox(machineSelect){
@@ -451,7 +462,7 @@ h1{flex:0 0 auto}
    periodicityWrap.append(periodicityLabel,periodicity);
    const dateWrap=document.createElement('div'); dateWrap.className='maintenance-top-field';
    const dateLabel=document.createElement('label'); dateLabel.className='maintenance-field'; dateLabel.textContent='Prossima manutenzione';
-   const date=document.createElement('input'); date.type='text'; date.readOnly=true; date.className='maintenance-next-date'; date.placeholder='Seleziona periodicità'; date.setAttribute('aria-label','Data prevista della prossima manutenzione');
+   const date=document.createElement('input'); date.type='date'; date.className='maintenance-next-date'; date.readOnly=false; date.placeholder='Seleziona periodicità'; date.setAttribute('aria-label','Data prevista della prossima manutenzione'); date.addEventListener('change',()=>{date.dataset.iso=date.value;});
    dateWrap.append(dateLabel,date); row.append(periodicityWrap,dateWrap);
    const notesLabel=document.createElement('label'); notesLabel.className='maintenance-field'; notesLabel.textContent='Note manutenzione';
    const notes=document.createElement('textarea'); notes.className='maintenance-notes'; notes.maxLength=1000; notes.placeholder='Note relative alla manutenzione (facoltative)';
@@ -467,12 +478,14 @@ h1{flex:0 0 auto}
      if(!machineId){status.textContent='Seleziona prima un macchinario.';return;}
      if(!periodicity.value){status.textContent='Seleziona la periodicità.';periodicity.focus();return;}
      if(!interventionDate){status.textContent='Data intervento non disponibile. Verifica il campo ID Data intervento ponte.';return;}
-     updateMaintenanceDate(box); if(!date.dataset.iso){status.textContent='Impossibile calcolare la data prevista.';return;}
+     if(action!=='aggiornamanutenzione') updateMaintenanceDate(box);
+     date.dataset.iso=date.value||date.dataset.iso||'';
+     if(!date.dataset.iso){status.textContent='Seleziona la data della prossima manutenzione.';date.focus();return;}
      const r=box._scheduled;
      if(action==='aggiornamanutenzione'&&(!r||!r.ID_Manutenzione)){status.textContent='ID della manutenzione da modificare non disponibile.';return;}
      save.disabled=true;edit.disabled=true;cancel.disabled=true;status.textContent='Salvataggio in corso…';
      try{
-       const result=await postApi({action,ID_Manutenzione:action==='aggiornamanutenzione'?r.ID_Manutenzione:'',ID_Macchinario:machineId,Periodicita_Manutenzione:periodicity.value,Data_Pianificazione:interventionDate,Note_Manutenzione:notes.value.trim()});
+       const result=await postApi({action,ID_Manutenzione:action==='aggiornamanutenzione'?r.ID_Manutenzione:'',ID_Macchinario:machineId,Periodicita_Manutenzione:periodicity.value,Data_Pianificazione:interventionDate,Data_Scadenza:date.dataset.iso,Note_Manutenzione:notes.value.trim()});
        status.textContent=(action==='aggiornamanutenzione'?'Manutenzione aggiornata.':'Manutenzione programmata salvata.')+' Prossima data: '+formatIsoIt(date.dataset.iso)+'.';
        await loadMachineMaintenance(machineId,box);
      }catch(err){status.textContent='Operazione non riuscita: '+String(err.message||err);save.disabled=false;edit.disabled=!box._scheduled;cancel.disabled=!box._scheduled;}
@@ -483,7 +496,7 @@ h1{flex:0 0 auto}
      const r=box._scheduled; if(!r||!r.ID_Manutenzione){status.textContent='Nessuna manutenzione selezionata da annullare.';return;}
      if(!confirm('Annullare la manutenzione programmata? La registrazione resterà nello storico con stato ANNULLATA.'))return;
      edit.disabled=true;cancel.disabled=true;save.disabled=true;status.textContent='Annullamento in corso…';
-     try{await postApi({action:'annullamanutenzione',ID_Manutenzione:r.ID_Manutenzione});status.textContent='Programmazione annullata. La registrazione è stata conservata nello storico.';periodicity.value='';notes.value='';await loadMachineMaintenance(machineSelect.value,box);}
+     try{await postApi({action:'annullamanutenzione',ID_Manutenzione:r.ID_Manutenzione});status.textContent='Programmazione annullata. La registrazione è stata conservata nello storico.';periodicity.value='';notes.value='';date.value='';date.dataset.iso='';await loadMachineMaintenance(machineSelect.value,box);}
      catch(err){status.textContent='Annullamento non riuscito: '+String(err.message||err);edit.disabled=false;cancel.disabled=false;save.disabled=true;}
    });
    machineSelect.addEventListener('change',()=>loadMachineMaintenance(machineSelect.value,box));
