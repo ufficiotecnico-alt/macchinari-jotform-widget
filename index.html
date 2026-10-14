@@ -4,7 +4,7 @@
 <script src="https://js.jotform.com/JotFormCustomWidget.min.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Macchinari V4.17 Data manutenzione modificabile</title>
+<title>Macchinari V4.18 Selezione attività per macchinario</title>
 <style>
 *{box-sizing:border-box}
 html,body{width:100%;min-width:0}
@@ -135,6 +135,12 @@ h1{flex:0 0 auto}
 .maintenance-status{margin-top:8px;font-size:13px;line-height:1.4;overflow-wrap:anywhere}
 .maintenance-existing{padding:8px;margin:6px 0;border-radius:7px;background:#e8f0e8;font-size:13px;line-height:1.45}
 .maintenance-date-info{margin:5px 0 9px;font-size:12px;color:#555;line-height:1.4}
+
+/* V4.18 — attività selezionabili per ciascun macchinario */
+.activities-box{margin:9px 0 11px;padding:10px;border:1px solid #c8d5df;border-radius:9px;background:#f7fafc}
+.activities-heading{font-size:14px;font-weight:700;margin-bottom:8px}
+.activity-option{display:flex;align-items:flex-start;gap:8px;margin:8px 0;font-size:14px;line-height:1.35;cursor:pointer}
+.activity-option input{width:18px;height:18px;flex:0 0 18px;margin:0;accent-color:#1677b8}
 
 
 .maintenance-top-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:end}
@@ -531,6 +537,17 @@ h1{flex:0 0 auto}
      o.value=m.id;o.textContent=m.label;s.appendChild(o);
    });
 
+   // Attività eseguite: selezione multipla riferita a questo macchinario.
+   const activitiesBox=document.createElement('section'); activitiesBox.className='activities-box';
+   const activitiesHeading=document.createElement('div'); activitiesHeading.className='activities-heading'; activitiesHeading.textContent='ATTIVITÀ ESEGUITE SU QUESTO MACCHINARIO';
+   [['ASSISTENZA_ORDINARIA','Assistenza ordinaria'],['NUOVA_INSTALLAZIONE','Nuova installazione'],['MANUTENZIONE_ORDINARIA','Manutenzione ordinaria']].forEach(([value,labelText])=>{
+     const label=document.createElement('label'); label.className='activity-option';
+     const input=document.createElement('input'); input.type='checkbox'; input.value=value; input.className='machine-activity';
+     const text=document.createElement('span'); text.textContent=labelText;
+     label.append(input,text); activitiesBox.appendChild(label);
+   });
+   activitiesBox.prepend(activitiesHeading);
+
    const problemLabel=document.createElement('label'); problemLabel.className='report-field'; problemLabel.textContent='Problema segnalato';
    const problem=document.createElement('textarea'); problem.className='report-input report-problem'; problem.rows=2; problem.maxLength=1500; problem.placeholder='Descrizione del problema segnalato dal cliente';
    const reportNotesLabel=document.createElement('label'); reportNotesLabel.className='report-field'; reportNotesLabel.textContent='Note';
@@ -555,7 +572,7 @@ h1{flex:0 0 auto}
 
    removeMachine.addEventListener('click',()=>b.remove());
 
-   b.append(head,s,problemLabel,problem,reportNotesLabel,reportNotes,maintenanceBox,title,spareList,addSpare);
+   b.append(head,s,activitiesBox,problemLabel,problem,reportNotesLabel,reportNotes,maintenanceBox,title,spareList,addSpare);
    $('machines').appendChild(b);
    if(s.value)loadMachineMaintenance(s.value,maintenanceBox);
  }
@@ -631,7 +648,8 @@ h1{flex:0 0 auto}
        parts.push({ID_Ricambio:part?part.id:'',Marca:part?part.brand:'',Codice:part?part.code:'',Descrizione:part?part.name:input.value.trim(),UnitaMisura:unit?unit.value:'pezzi',Quantita:qty?qty.value:'1',Origine:part?'ANAGRAFICA':'INSERIMENTO_MANUALE'});
      });
      const blockProblem=block.querySelector('.report-problem'); const blockNotes=block.querySelector('.report-notes');
-     machines.push({ID_Macchinario:machine.id,Marca:machine.raw.Marca||'',Descrizione:machine.raw.Descrizione||'',Modello:machine.raw.Modello||'',Matricola:String(machine.raw.Matricola||'').trim(),ProblemaSegnalato:blockProblem?blockProblem.value.trim():'',NoteIntervento:blockNotes?blockNotes.value.trim():'',Ricambi:parts});
+     const activities=Array.from(block.querySelectorAll('.machine-activity:checked')).map(input=>input.value);
+     machines.push({ID_Macchinario:machine.id,Marca:machine.raw.Marca||'',Descrizione:machine.raw.Descrizione||'',Modello:machine.raw.Modello||'',Matricola:String(machine.raw.Matricola||'').trim(),Attivita:activities,ProblemaSegnalato:blockProblem?blockProblem.value.trim():'',NoteIntervento:blockNotes?blockNotes.value.trim():'',Ricambi:parts});
    });
    return {ID_Cliente:bridgeId,Macchinari:machines};
  }
