@@ -4,7 +4,7 @@
 <script src="https://js.jotform.com/JotFormCustomWidget.min.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Macchinari V4.19 Conferma manutenzione eseguita</title>
+<title>Macchinari V4.20 Pulsanti manutenzione semplificati</title>
 <style>
 *{box-sizing:border-box}
 html,body{width:100%;min-width:0}
@@ -177,7 +177,7 @@ h1{flex:0 0 auto}
 .maintenance-field{display:block;width:100%;margin:6px 0 3px;font-size:13px;font-weight:600}
 .maintenance-box input,.maintenance-box textarea,.maintenance-box select{width:100%;min-height:41px;padding:8px;border:1px solid #999;border-radius:7px;background:#fff;font:15px Arial,Helvetica,sans-serif}
 .maintenance-box textarea{min-height:58px;resize:vertical}
-.maintenance-save{width:100%;margin-top:8px;padding:10px;border:1px solid #667788;border-radius:8px;background:#fff;font-size:15px;font-weight:700}
+.maintenance-save{width:100%;margin-top:0;padding:10px;border:1px solid #667788;border-radius:8px;background:#fff;font-size:15px;font-weight:700}
 .maintenance-status{margin-top:8px;font-size:13px;line-height:1.4;overflow-wrap:anywhere}
 .maintenance-existing{padding:8px;margin:6px 0;border-radius:7px;background:#e8f0e8;font-size:13px;line-height:1.45}
 .maintenance-date-info{margin:5px 0 9px;font-size:12px;color:#555;line-height:1.4}
@@ -458,42 +458,40 @@ h1{flex:0 0 auto}
    button.disabled=!canComplete;
  }
  async function loadMachineMaintenance(machineId, box){
-   const status=box.querySelector('.maintenance-status');
-   const existing=box.querySelector('.maintenance-existing');
-   const save=box.querySelector('.maintenance-save');
-   const edit=box.querySelector('.maintenance-edit');
-   const cancel=box.querySelector('.maintenance-cancel');
-   existing.style.display='none'; existing.textContent='';
-   box._scheduled=null; edit.disabled=true; cancel.disabled=true; save.disabled=false;
-   status.textContent='Verifica manutenzione in corso…';
-   if(!machineId){status.textContent='Seleziona un macchinario per verificare la manutenzione.';updateMaintenanceCompletionButton(box);return;}
-   try{
-     const response=await fetch(API_URL+'?action=verificamanutenzione&ID_Macchinario='+encodeURIComponent(machineId));
-     if(!response.ok)throw new Error('HTTP '+response.status);
-     const data=await response.json(); if(!data||data.ok!==true)throw new Error((data&&data.error)||'Risposta non valida');
-     const rows=Array.isArray(data.registrazioni)?data.registrazioni:[];
-     const scheduled=rows.filter(r=>String(r.Stato||'').toUpperCase()==='PROGRAMMATA');
-     if(scheduled.length){
-       const r=scheduled[0]; box._scheduled=r;
-       const strong=document.createElement('strong'); strong.textContent='Manutenzione già programmata';
-       const details=document.createElement('div'); details.textContent='Periodicità: '+(r.Periodicita||'—')+' · Prossima manutenzione: '+italianDate(r.Data_Scadenza)+' · Stato: '+(r.Stato||'—');
-       existing.replaceChildren(strong,details); existing.style.display='block';
-       box.querySelector('.maintenance-periodicity').value=r.Periodicita||'';
-       box.querySelector('.maintenance-notes').value=r.Note||'';
-       const dateInput=box.querySelector('.maintenance-next-date');
-       const savedDate=toIsoDate(r.Data_Scadenza);
-       dateInput.value=savedDate; dateInput.dataset.iso=savedDate;
-       dateInput.readOnly=false;
-       save.disabled=true; edit.disabled=false; cancel.disabled=false;
-       status.textContent='Manutenzione programmata esistente. Puoi modificarla oppure annullarla.';
-       updateMaintenanceCompletionButton(box);
-     }else{
-       status.textContent=rows.length?'Non risultano manutenzioni attualmente programmate.':'Nessuna manutenzione registrata per questo macchinario.';
-       updateMaintenanceCompletionButton(box);
-     }
-   }catch(err){status.textContent='Verifica non riuscita: '+String(err.message||err);updateMaintenanceCompletionButton(box);}
- }
-
+    const status=box.querySelector('.maintenance-status');
+    const existing=box.querySelector('.maintenance-existing');
+    const save=box.querySelector('.maintenance-save');
+    const cancel=box.querySelector('.maintenance-cancel');
+    existing.style.display='none'; existing.textContent='';
+    box._scheduled=null; cancel.disabled=true; save.disabled=false;
+    status.textContent='Verifica manutenzione in corso…';
+    if(!machineId){status.textContent='Seleziona un macchinario per verificare la manutenzione.';updateMaintenanceCompletionButton(box);return;}
+    try{
+      const response=await fetch(API_URL+'?action=verificamanutenzione&ID_Macchinario='+encodeURIComponent(machineId));
+      if(!response.ok)throw new Error('HTTP '+response.status);
+      const data=await response.json(); if(!data||data.ok!==true)throw new Error((data&&data.error)||'Risposta non valida');
+      const rows=Array.isArray(data.registrazioni)?data.registrazioni:[];
+      const scheduled=rows.filter(r=>String(r.Stato||'').toUpperCase()==='PROGRAMMATA');
+      if(scheduled.length){
+        const r=scheduled[0]; box._scheduled=r;
+        const strong=document.createElement('strong'); strong.textContent='Manutenzione già programmata';
+        const details=document.createElement('div'); details.textContent='Periodicità: '+(r.Periodicita||'—')+' · Prossima manutenzione: '+italianDate(r.Data_Scadenza)+' · Stato: '+(r.Stato||'—');
+        existing.replaceChildren(strong,details); existing.style.display='block';
+        box.querySelector('.maintenance-periodicity').value=r.Periodicita||'';
+        box.querySelector('.maintenance-notes').value=r.Note||'';
+        const dateInput=box.querySelector('.maintenance-next-date');
+        const savedDate=toIsoDate(r.Data_Scadenza);
+        dateInput.value=savedDate; dateInput.dataset.iso=savedDate;
+        dateInput.readOnly=false;
+        save.disabled=true; cancel.disabled=false;
+        status.textContent='Manutenzione già programmata. Per cambiare la data, annulla la manutenzione e crea una nuova programmazione.';
+        updateMaintenanceCompletionButton(box);
+      }else{
+        status.textContent=rows.length?'Non risultano manutenzioni attualmente programmate.':'Nessuna manutenzione registrata per questo macchinario.';
+        updateMaintenanceCompletionButton(box);
+      }
+    }catch(err){status.textContent='Verifica non riuscita: '+String(err.message||err);updateMaintenanceCompletionButton(box);}
+  }
  function toIsoDate(value){
    const s=String(value||'').trim();
    let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -600,7 +598,7 @@ h1{flex:0 0 auto}
        box._completedForDate=interventionDate;
        status.textContent='Manutenzione completata. Prossima scadenza: '+formatIsoIt(result.Data_Scadenza_Successiva)+'.';
        await loadMachineMaintenance(machineId,box);
-     catch(err){status.textContent='Conferma non riuscita: '+String(err.message||err);complete.disabled=false;save.disabled=!!box._scheduled;cancel.disabled=!box._scheduled;updateMaintenanceCompletionButton(box);}
+     }catch(err){status.textContent='Conferma non riuscita: '+String(err.message||err);complete.disabled=false;save.disabled=!!box._scheduled;cancel.disabled=!box._scheduled;updateMaintenanceCompletionButton(box);}
    });
    machineSelect.addEventListener('change',()=>{box._completedForDate=null;loadMachineMaintenance(machineSelect.value,box);});
    box.append(heading,existing,row,notesLabel,notes,actions,status);
