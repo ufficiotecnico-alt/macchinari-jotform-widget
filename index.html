@@ -24,12 +24,57 @@ select,.spare-search,.qty{width:100%;min-height:43px;padding:7px 10px;border:1px
 .report-field{display:block;width:100%;margin:7px 0 3px;font-size:13px;font-weight:700}
 .report-input{display:block;width:100%;min-height:42px;padding:8px;border:1px solid #999;border-radius:8px;font:15px Arial,Helvetica,sans-serif}
 .report-notes{min-height:54px;resize:vertical}
-.maintenance-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;margin-top:7px}
-.maintenance-actions button{flex:1;min-width:120px;padding:8px 5px;border:1px solid #778899;border-radius:7px;background:#fff;font-size:12px;font-weight:700}
-.maintenance-actions button:disabled{opacity:.45}
-.maintenance-actions .maintenance-complete{background:#eef6ee;border-color:#4f8055;color:#234b28;display:none}
-.maintenance-top-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
-.maintenance-save{margin-top:7px}
+
+.maintenance-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+  margin-top: 7px;
+}
+
+.maintenance-actions button {
+  padding: 8px 5px;
+  border: 1px solid #778899;
+  border-radius: 7px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.maintenance-actions button:disabled {
+  opacity: .45;
+}
+
+.maintenance-actions .maintenance-plan-row {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  width: 100%;
+}
+
+.maintenance-actions .maintenance-plan-row button {
+  flex: 1;
+  min-width: 0;
+  width: 50%;
+}
+
+.maintenance-actions .maintenance-complete {
+  width: 100%;
+  background: #eef6ee;
+  border-color: #4f8055;
+  color: #234b28;
+  display: none;
+}
+
+.maintenance-top-row {
+  grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+}
+
+.maintenance-save {
+  margin-top: 0;
+}
+
 .section-title{margin:6px 0 7px;font-size:17px;font-weight:700}
 .spare-list{margin-top:6px;width:100%}
 .spare-row{position:relative;width:100%;margin-top:8px;padding:10px;border:1px solid #ccc;border-radius:10px;background:#fafafa;overflow:visible}
@@ -484,12 +529,34 @@ h1{flex:0 0 auto}
    dateWrap.append(dateLabel,date); row.append(periodicityWrap,dateWrap);
    const notesLabel=document.createElement('label'); notesLabel.className='maintenance-field'; notesLabel.textContent='Note manutenzione';
    const notes=document.createElement('textarea'); notes.className='maintenance-notes'; notes.maxLength=1000; notes.placeholder='Note relative alla manutenzione (facoltative)';
-   const actions=document.createElement('div'); actions.className='maintenance-actions';
-   const save=document.createElement('button'); save.type='button'; save.className='maintenance-save'; save.textContent='Programma';
-   const edit=document.createElement('button'); edit.type='button'; edit.className='maintenance-edit'; edit.textContent='Modifica'; edit.disabled=true;
-   const cancel=document.createElement('button'); cancel.type='button'; cancel.className='maintenance-cancel'; cancel.textContent='Annulla programma'; cancel.disabled=true;
-   const complete=document.createElement('button'); complete.type='button'; complete.className='maintenance-complete'; complete.textContent='Conferma manutenzione eseguita'; complete.style.display='none';
-   actions.append(save,edit,cancel,complete);
+   
+   const actions=document.createElement('div');
+   actions.className='maintenance-actions';
+
+   const planRow=document.createElement('div');
+   planRow.className='maintenance-plan-row';
+
+   const save=document.createElement('button');
+   save.type='button';
+   save.className='maintenance-save';
+   save.textContent='Programma';
+
+   const cancel=document.createElement('button');
+   cancel.type='button';
+   cancel.className='maintenance-cancel';
+   cancel.textContent='Annulla manutenzione';
+   cancel.disabled=true;
+
+   planRow.append(save,cancel);
+
+   const complete=document.createElement('button');
+   complete.type='button';
+   complete.className='maintenance-complete';
+   complete.textContent='Conferma manutenzione eseguita';
+   complete.style.display='none';
+
+   actions.append(planRow,complete);
+
    const status=document.createElement('div'); status.className='maintenance-status'; status.setAttribute('role','status'); status.textContent='Seleziona un macchinario per verificare la manutenzione.';
    periodicity.addEventListener('change',()=>updateMaintenanceDate(box));
    async function savePlan(action){
@@ -502,21 +569,20 @@ h1{flex:0 0 auto}
      if(!date.dataset.iso){status.textContent='Seleziona la data della prossima manutenzione.';date.focus();return;}
      const r=box._scheduled;
      if(action==='aggiornamanutenzione'&&(!r||!r.ID_Manutenzione)){status.textContent='ID della manutenzione da modificare non disponibile.';return;}
-     save.disabled=true;edit.disabled=true;cancel.disabled=true;status.textContent='Salvataggio in corso…';
+     save.disabled=true;cancel.disabled=true;status.textContent='Salvataggio in corso…';
      try{
        const result=await postApi({action,ID_Manutenzione:action==='aggiornamanutenzione'?r.ID_Manutenzione:'',ID_Macchinario:machineId,Periodicita_Manutenzione:periodicity.value,Data_Pianificazione:interventionDate,Data_Scadenza:date.dataset.iso,Note_Manutenzione:notes.value.trim()});
        status.textContent=(action==='aggiornamanutenzione'?'Manutenzione aggiornata.':'Manutenzione programmata salvata.')+' Prossima data: '+formatIsoIt(date.dataset.iso)+'.';
        await loadMachineMaintenance(machineId,box);
-     }catch(err){status.textContent='Operazione non riuscita: '+String(err.message||err);save.disabled=false;edit.disabled=!box._scheduled;cancel.disabled=!box._scheduled;}
+     }catch(err){status.textContent='Operazione non riuscita: '+String(err.message||err);save.disabled=!!box._scheduled;cancel.disabled=!box._scheduled;}
    }
    save.addEventListener('click',()=>savePlan('salvaconfigurazionemanutenzione'));
-   edit.addEventListener('click',()=>savePlan('aggiornamanutenzione'));
    cancel.addEventListener('click',async()=>{
      const r=box._scheduled; if(!r||!r.ID_Manutenzione){status.textContent='Nessuna manutenzione selezionata da annullare.';return;}
      if(!confirm('Annullare la manutenzione programmata? La registrazione resterà nello storico con stato ANNULLATA.'))return;
-     edit.disabled=true;cancel.disabled=true;save.disabled=true;status.textContent='Annullamento in corso…';
+     cancel.disabled=true;save.disabled=true;status.textContent='Annullamento in corso…';
      try{await postApi({action:'annullamanutenzione',ID_Manutenzione:r.ID_Manutenzione});status.textContent='Programmazione annullata. La registrazione è stata conservata nello storico.';periodicity.value='';notes.value='';date.value='';date.dataset.iso='';await loadMachineMaintenance(machineSelect.value,box);}
-     catch(err){status.textContent='Annullamento non riuscito: '+String(err.message||err);edit.disabled=false;cancel.disabled=false;save.disabled=true;}
+     catch(err){status.textContent='Annullamento non riuscito: '+String(err.message||err);cancel.disabled=false;save.disabled=!!box._scheduled;}
    });
    complete.addEventListener('click',async()=>{
      const machineId=machineSelect.value;
@@ -528,13 +594,13 @@ h1{flex:0 0 auto}
      if(!interventionDate){status.textContent='Data effettiva non disponibile. Verifica il campo data intervento.';return;}
      if(box._completedForDate===interventionDate){status.textContent='La manutenzione risulta già confermata per questa data.';return;}
      if(!confirm('Confermi che la manutenzione programmata del macchinario selezionato è stata effettivamente eseguita in data '+formatIsoIt(interventionDate)+'? Questa operazione aggiornerà lo storico e creerà la prossima scadenza.'))return;
-     complete.disabled=true;save.disabled=true;edit.disabled=true;cancel.disabled=true;status.textContent='Registrazione dell’esecuzione in corso…';
+     complete.disabled=true;save.disabled=true;cancel.disabled=true;status.textContent='Registrazione dell’esecuzione in corso…';
      try{
        const result=await postApi({action:'confermaesecuzionemanutenzione',ID_Manutenzione:r.ID_Manutenzione,ID_Macchinario:machineId,Data_Esecuzione:interventionDate});
        box._completedForDate=interventionDate;
        status.textContent='Manutenzione completata. Prossima scadenza: '+formatIsoIt(result.Data_Scadenza_Successiva)+'.';
        await loadMachineMaintenance(machineId,box);
-     }catch(err){status.textContent='Conferma non riuscita: '+String(err.message||err);complete.disabled=false;save.disabled=true;edit.disabled=!box._scheduled;cancel.disabled=!box._scheduled;updateMaintenanceCompletionButton(box);}
+     catch(err){status.textContent='Conferma non riuscita: '+String(err.message||err);complete.disabled=false;save.disabled=!!box._scheduled;cancel.disabled=!box._scheduled;updateMaintenanceCompletionButton(box);}
    });
    machineSelect.addEventListener('change',()=>{box._completedForDate=null;loadMachineMaintenance(machineSelect.value,box);});
    box.append(heading,existing,row,notesLabel,notes,actions,status);
