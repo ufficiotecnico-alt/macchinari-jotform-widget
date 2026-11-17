@@ -169,6 +169,16 @@ body{height:auto;max-height:none;overflow-x:hidden;overflow-y:visible;display:bl
   #contentArea{margin-top:7px}
 }
 
+/* Manutenzione programmata: sezione richiudibile per ridurre l'ingombro */
+.maintenance-toggle{
+  display:block;width:100%;margin:8px 0 0;padding:9px 11px;
+  border:1px solid #9aaaba;border-radius:8px;background:#f5f8fb;
+  color:#243746;font-size:14px;font-weight:700;text-align:left;
+}
+.maintenance-toggle::before{content:"＋";display:inline-block;width:22px;font-size:16px}
+.maintenance-toggle[aria-expanded="true"]::before{content:"−"}
+.maintenance-panel[hidden]{display:none!important}
+
 /* Manutenzione programmata */
 .maintenance-box{margin:2px 0 13px;padding:11px;border:1px solid #b9c8d8;border-radius:10px;background:#f5f8fb}
 .maintenance-heading{font-size:16px;font-weight:700;margin-bottom:8px}
@@ -472,6 +482,7 @@ body{height:auto;max-height:none;overflow-x:hidden;overflow-y:visible;display:bl
       const scheduled=rows.filter(r=>String(r.Stato||'').toUpperCase()==='PROGRAMMATA');
       if(scheduled.length){
         const r=scheduled[0]; box._scheduled=r;
+        if(box._setMaintenanceExpanded)box._setMaintenanceExpanded(true);
         const strong=document.createElement('strong'); strong.textContent='Manutenzione già programmata';
         const details=document.createElement('div'); details.textContent='Periodicità: '+(r.Periodicita||'—')+' · Prossima manutenzione: '+italianDate(r.Data_Scadenza)+' · Stato: '+(r.Stato||'—');
         existing.replaceChildren(strong,details); existing.style.display='block';
@@ -511,6 +522,25 @@ body{height:auto;max-height:none;overflow-x:hidden;overflow-y:visible;display:bl
 
  function createMaintenanceBox(machineSelect){
    const box=document.createElement('section'); box.className='maintenance-box';
+
+   const toggle=document.createElement('button');
+   toggle.type='button';
+   toggle.className='maintenance-toggle';
+   toggle.textContent='Manutenzione programmata';
+   toggle.setAttribute('aria-expanded','false');
+
+   const panel=document.createElement('div');
+   panel.className='maintenance-panel';
+   panel.hidden=true;
+
+   function setMaintenanceExpanded(expanded){
+     panel.hidden=!expanded;
+     toggle.setAttribute('aria-expanded',expanded?'true':'false');
+     toggle.textContent=expanded?'Nascondi manutenzione programmata':'Manutenzione programmata';
+   }
+   toggle.addEventListener('click',()=>setMaintenanceExpanded(panel.hidden));
+   box._setMaintenanceExpanded=setMaintenanceExpanded;
+
    const heading=document.createElement('div'); heading.className='maintenance-heading'; heading.textContent='MANUTENZIONE PROGRAMMATA';
    const existing=document.createElement('div'); existing.className='maintenance-existing'; existing.style.display='none';
    const row=document.createElement('div'); row.className='maintenance-top-row';
@@ -599,7 +629,8 @@ body{height:auto;max-height:none;overflow-x:hidden;overflow-y:visible;display:bl
      }catch(err){status.textContent='Conferma non riuscita: '+String(err.message||err);complete.disabled=false;save.disabled=!!box._scheduled;cancel.disabled=!box._scheduled;updateMaintenanceCompletionButton(box);}
    });
    machineSelect.addEventListener('change',()=>{box._completedForDate=null;loadMachineMaintenance(machineSelect.value,box);});
-   box.append(heading,existing,row,notesLabel,notes,actions,status);
+   panel.append(heading,existing,row,notesLabel,notes,actions,status);
+   box.append(toggle,panel);
    updateMaintenanceDate(box); return box;
  }
 
